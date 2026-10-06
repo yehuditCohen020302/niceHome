@@ -35,7 +35,7 @@ export function ShoppingList({ entries, totalPrice, budget, activeNumber, onSele
               <p className="text-xs font-semibold tracking-wide text-ink-muted">
                 {group.store?.name ?? t('card.noInfo')}
               </p>
-              {group.store && !group.store.mock && (
+              {group.store?.website && !group.store.mock && (
                 <a
                   href={group.store.website}
                   target="_blank"
@@ -72,6 +72,7 @@ export function ShoppingList({ entries, totalPrice, budget, activeNumber, onSele
                         <span className="text-xs text-ink-muted">{t(`category.${entry.product.category}`)}</span>
                       </span>
                       <span className="shrink-0 text-sm font-semibold">
+                        {entry.product.priceIsFrom && <span className="text-xs font-normal text-ink-muted">{t('card.priceFrom')}</span>}
                         {formatPrice(entry.product.price, entry.product.currency)}
                       </span>
                     </button>

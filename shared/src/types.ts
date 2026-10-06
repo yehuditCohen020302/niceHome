@@ -81,6 +81,8 @@ export interface Product {
   name: string;
   description?: string;
   price: number;
+  /** True when variants (size, color) have different prices and `price` is the lowest: shown as "החל מ-". */
+  priceIsFrom?: boolean;
   currency: string;
   imageUrl: string;
   productUrl: string;
@@ -104,7 +106,8 @@ export interface Product {
 export interface Store {
   id: string;
   name: string;
-  website: string;
+  /** Absent when the source does not tell us the store's own site. */
+  website?: string;
   logoUrl?: string;
   city?: string;
   address?: string;
@@ -206,6 +209,18 @@ export interface UploadedImage {
   sizeBytes: number;
 }
 
+/** Freshness of one product source, so the UI can say what it is showing and how current it is. */
+export interface ProductSourceStatus {
+  id: string;
+  name: string;
+  providerId: string;
+  /** `syncing` = first download still running; `disabled` = not configured (e.g. missing API key). */
+  status: 'ready' | 'syncing' | 'error' | 'disabled';
+  products: number;
+  /** ISO timestamp of the last successful sync. */
+  syncedAt?: string;
+}
+
 export interface HealthResponse {
   status: 'ok';
   online: boolean;
@@ -216,6 +231,9 @@ export interface HealthResponse {
   };
   /** True when any active engine or provider is a mock. */
   mock: boolean;
+  /** Which parts are mocks, so the UI can say exactly what is and is not real. */
+  mockParts: { products: boolean; analysis: boolean; generation: boolean };
+  sources: ProductSourceStatus[];
 }
 
 export interface ApiErrorBody {

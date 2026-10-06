@@ -117,6 +117,7 @@ function DesignView({ data }: { data: LoadedDesign }) {
   );
 
   const usesRules = design.pipeline.planner === 'rules' || design.pipeline.ranker === 'rules';
+  const mockProducts = entries.some((entry) => entry.product.mock);
   const isEmpty = entries.length === 0 && design.unmatchedSpecs.length === 0;
 
   return (
@@ -133,7 +134,7 @@ function DesignView({ data }: { data: LoadedDesign }) {
           <p className="font-semibold">{t('design.notice.title')}</p>
           <ul className="mt-1 list-disc space-y-0.5 ps-5">
             {!design.generatedImageUrl && <li>{t('design.notice.noImage')}</li>}
-            {design.mock && <li>{t('design.notice.mockProducts')}</li>}
+            {entries.length > 0 && <li>{t(mockProducts ? 'design.notice.mockProducts' : 'design.notice.realProducts')}</li>}
             {usesRules && <li>{t('design.notice.rules')}</li>}
           </ul>
         </aside>

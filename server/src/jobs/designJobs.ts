@@ -45,7 +45,9 @@ async function run(job: DesignJob, room: Room): Promise<void> {
     job.status = 'failed';
     job.error =
       error instanceof NoProvidersAvailableError
-        ? { code: 'products_unavailable', message: 'No product source is reachable right now' }
+        ? error.stillSyncing
+          ? { code: 'catalogs_syncing', message: 'Store catalogs are still downloading for the first time' }
+          : { code: 'products_unavailable', message: 'No product source is reachable right now' }
         : { code: 'generation_failed', message: 'Design generation failed' };
     if (!(error instanceof NoProvidersAvailableError)) console.error(error);
   }

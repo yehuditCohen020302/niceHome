@@ -1,11 +1,21 @@
-import { DEFAULT_CURRENCY, type Product, type Store } from '@nice-home/shared';
-import type { ProductProvider, ProductSearchParams, ProviderProduct } from './ProductProvider';
+import { DEFAULT_CURRENCY, type Product, type ProductSourceStatus, type Store } from '@nice-home/shared';
+import {
+  ProviderNotReadyError,
+  type ProductProvider,
+  type ProductSearchParams,
+  type ProviderProduct,
+} from './ProductProvider';
 
 const ID_SEPARATOR = ':';
 
 export class NoProvidersAvailableError extends Error {
   constructor(readonly causes: unknown[]) {
     super('All product providers failed');
+  }
+
+  /** Every provider is still downloading its first catalog — a wait, not a failure. */
+  get stillSyncing(): boolean {
+    return this.causes.length > 0 && this.causes.every((cause) => cause instanceof ProviderNotReadyError);
   }
 }
 
@@ -53,6 +63,10 @@ export class ProductEngine {
     return raw ? normalize(provider.id, raw) : null;
   }
 
+  status(): ProductSourceStatus[] {
+    return [...this.providers.values()].flatMap((provider) => provider.status());
+  }
+
   async getStores(): Promise<Store[]> {
     const results = await Promise.allSettled([...this.providers.values()].map((provider) => provider.getStores()));
     return results.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
@@ -88,7 +102,9 @@ function normalize(providerId: string, raw: ProviderProduct): Product | null {
 function passesHardFilters(product: Product, params: ProductSearchParams): boolean {
   return (
     product.category === params.category &&
-    product.availability === 'in_stock' &&
+    // Unknown availability is allowed (shown as "לא ידוע"); known-unavailable items are not offered.
+    product.availability !== 'out_of_stock' &&
+    product.availability !== 'preorder' &&
     // Comparing prices across currencies would need live exchange rates; only ILS for now.
     product.currency === DEFAULT_CURRENCY &&
     (params.maxPrice === undefined || product.price <= params.maxPrice)

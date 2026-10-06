@@ -9,8 +9,8 @@ const toneClasses: Record<Tone, string> = {
 };
 
 /**
- * App-wide status: local server down, no internet, or mock mode.
- * Shown above every page so mock data is never mistaken for real data.
+ * App-wide status: local server down, no internet, catalogs still downloading, and which parts
+ * are still mocks. Shown above every page so nothing fake is ever mistaken for real.
  */
 export function StatusBanner() {
   const { state, refresh } = useHealth();
@@ -21,8 +21,14 @@ export function StatusBanner() {
   if (state.status === 'server-unreachable' || state.status === 'error') {
     banners.push({ key: 'status.serverDown', tone: 'danger', retry: true });
   } else if (state.status === 'ready') {
-    if (!state.health.online) banners.push({ key: 'status.offline', tone: 'danger', retry: true });
-    if (state.health.mock) banners.push({ key: 'status.mock', tone: 'notice' });
+    const { online, mockParts, sources } = state.health;
+    if (!online) banners.push({ key: 'status.offline', tone: 'danger', retry: true });
+    const active = sources.filter((source) => source.status !== 'disabled');
+    if (active.length > 0 && !active.some((source) => source.status === 'ready')) {
+      banners.push({ key: 'status.syncing', tone: 'notice' });
+    }
+    if (mockParts.products) banners.push({ key: 'status.mock', tone: 'notice' });
+    else if (mockParts.analysis || mockParts.generation) banners.push({ key: 'status.partialMock', tone: 'notice' });
   }
 
   if (banners.length === 0) return null;

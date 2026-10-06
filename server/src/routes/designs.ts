@@ -35,7 +35,9 @@ designsRouter.post('/generate', async (req, res) => {
     res.status(201).json(record.design);
   } catch (error) {
     if (error instanceof NoProvidersAvailableError) {
-      throw new HttpError(503, 'products_unavailable', 'No product source is reachable right now');
+      throw error.stillSyncing
+        ? new HttpError(503, 'catalogs_syncing', 'Store catalogs are still downloading for the first time')
+        : new HttpError(503, 'products_unavailable', 'No product source is reachable right now');
     }
     throw error;
   }

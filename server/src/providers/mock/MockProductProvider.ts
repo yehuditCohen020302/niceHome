@@ -1,4 +1,10 @@
-import { DEFAULT_CURRENCY, PRODUCT_CATEGORIES, type ProductCategory, type Store } from '@nice-home/shared';
+import {
+  DEFAULT_CURRENCY,
+  PRODUCT_CATEGORIES,
+  type ProductCategory,
+  type ProductSourceStatus,
+  type Store,
+} from '@nice-home/shared';
 import type {
   ProductProvider,
   ProductSearchParams,
@@ -54,6 +60,10 @@ export class MockProductProvider implements ProductProvider {
 
   async getStores(): Promise<Store[]> {
     return MOCK_STORES;
+  }
+
+  status(): ProductSourceStatus[] {
+    return [{ id: 'mock', name: 'קטלוג דוגמה', providerId: this.id, status: 'ready', products: this.products.length }];
   }
 }
 

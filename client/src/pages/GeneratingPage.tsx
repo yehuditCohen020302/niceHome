@@ -49,7 +49,13 @@ export function GeneratingPage() {
       {job?.status === 'failed' && (
         <div role="alert" className="mt-8 rounded-2xl bg-danger px-5 py-4 text-sm text-danger-ink">
           <p>
-            {t(job.error?.code === 'products_unavailable' ? 'room.error.productsUnavailable' : 'room.error.generic')}
+            {t(
+              job.error?.code === 'catalogs_syncing'
+                ? 'room.error.catalogsSyncing'
+                : job.error?.code === 'products_unavailable'
+                  ? 'room.error.productsUnavailable'
+                  : 'room.error.generic',
+            )}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button

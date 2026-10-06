@@ -29,16 +29,12 @@ function readNumber(name: string, fallback: number): number {
 export const config = {
   port: readNumber('PORT', 3001),
   dataDir: path.join(serverRoot, 'data'),
-  productProviders: readList('PRODUCT_PROVIDERS', ['mock']),
+  /** Downloaded store catalogs and API results; safe to delete (they are re-downloaded). */
+  cacheDir: path.join(serverRoot, 'data', 'cache'),
+  productProviders: readList('PRODUCT_PROVIDERS', ['shopify', 'serpapi']),
+  /** Optional. Enables Google Shopping results via SerpApi. */
+  serpApiKey: process.env.SERPAPI_KEY?.trim() || undefined,
   analysisEngine: process.env.ANALYSIS_ENGINE ?? 'mock',
   generationEngine: process.env.GENERATION_ENGINE ?? 'mock',
   priceTtlMinutes: readNumber('PRICE_TTL_MINUTES', 360),
 } as const;
-
-export function isMockMode(): boolean {
-  return (
-    config.productProviders.includes('mock') ||
-    config.analysisEngine === 'mock' ||
-    config.generationEngine === 'mock'
-  );
-}

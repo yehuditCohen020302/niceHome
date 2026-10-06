@@ -18,6 +18,7 @@ export function ProductCard({ entry, controls }: ProductCardProps) {
   const { product, store, item } = entry;
   const noInfo = <span className="text-ink-muted">{t('card.noInfo')}</span>;
 
+  const sourceKey = `card.source.${product.providerId}` as const;
   const rows: { label: string; value: ReactNode }[] = [
     { label: t('card.store'), value: store?.name ?? noInfo },
     { label: t('card.availability'), value: t(`card.availability.${product.availability}`) },
@@ -33,6 +34,7 @@ export function ProductCard({ entry, controls }: ProductCardProps) {
       label: t('card.rating'),
       value: product.rating !== undefined ? t('card.ratingValue', { rating: product.rating }) : noInfo,
     },
+    { label: t('card.source'), value: isKnownSource(sourceKey) ? t(sourceKey) : product.providerId },
   ];
 
   return (
@@ -48,7 +50,10 @@ export function ProductCard({ entry, controls }: ProductCardProps) {
       <div className="flex gap-4">
         <img src={product.imageUrl} alt="" className="size-24 shrink-0 rounded-2xl bg-canvas object-cover" />
         <div className="min-w-0">
-          <p className="text-2xl font-bold">{formatPrice(product.price, product.currency)}</p>
+          <p className="text-2xl font-bold">
+            {product.priceIsFrom && <span className="text-sm font-medium text-ink-muted">{t('card.priceFrom')}</span>}
+            {formatPrice(product.price, product.currency)}
+          </p>
           <p className="mt-0.5 text-xs text-ink-muted">
             {t('card.updated', { time: formatRelativeTime(product.lastUpdated) })}
           </p>
@@ -82,9 +87,14 @@ export function ProductCard({ entry, controls }: ProductCardProps) {
           rel="noopener noreferrer"
           className={buttonClasses('primary')}
         >
-          {t('design.item.open')}
+          {store ? t('design.item.openAt', { store: store.name }) : t('design.item.open')}
         </a>
       )}
     </article>
   );
+}
+
+const KNOWN_SOURCES = ['card.source.shopify', 'card.source.serpapi', 'card.source.mock'] as const;
+function isKnownSource(key: string): key is (typeof KNOWN_SOURCES)[number] {
+  return (KNOWN_SOURCES as readonly string[]).includes(key);
 }

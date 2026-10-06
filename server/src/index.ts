@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import express from 'express';
-import { config, isMockMode } from './config';
+import { config } from './config';
 import { errorHandler, notFoundHandler } from './errors';
 import { designsRouter } from './routes/designs';
 import { healthRouter } from './routes/health';
@@ -8,6 +8,7 @@ import { mockAssetsRouter } from './routes/mockAssets';
 import { productsRouter, storesRouter } from './routes/products';
 import { roomsRouter } from './routes/rooms';
 import { uploadsRouter } from './routes/uploads';
+import { mockParts, startProductSources } from './services/registry';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
 
@@ -27,7 +28,7 @@ app.use(errorHandler);
 // Bind to localhost only: the app runs on the user's own machine.
 app.listen(config.port, '127.0.0.1', () => {
   console.log(`[server] listening on http://localhost:${config.port}`);
-  if (isMockMode()) {
-    console.log('[server] mock mode: some engines/providers are mocks and are labeled as such in the UI');
-  }
+  const mocks = Object.entries(mockParts()).filter(([, isMock]) => isMock).map(([part]) => part);
+  if (mocks.length > 0) console.log(`[server] still mocks (labeled in the UI): ${mocks.join(', ')}`);
+  startProductSources().catch((error) => console.error('[sources] failed to start', error));
 });
