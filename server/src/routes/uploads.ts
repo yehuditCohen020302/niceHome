@@ -2,6 +2,7 @@ import { Router, type RequestHandler } from 'express';
 import multer from 'multer';
 import { MAX_UPLOAD_BYTES, type UploadedImage } from '@nice-home/shared';
 import { HttpError } from '../errors';
+import { findGenerated } from '../storage/generated';
 import { detectImageType, findUpload, saveUpload } from '../storage/uploads';
 
 export const uploadsRouter = Router();
@@ -50,6 +51,17 @@ uploadsRouter.get('/:id', async (req, res) => {
   const filePath = await findUpload(req.params.id);
   if (!filePath) {
     throw new HttpError(404, 'upload_not_found', 'Image not found');
+  }
+  res.sendFile(filePath, { headers: { 'Cache-Control': 'private, max-age=31536000, immutable' } });
+});
+
+/** Visualizations created by the image generator. */
+export const generatedRouter = Router();
+
+generatedRouter.get('/:id', async (req, res) => {
+  const filePath = await findGenerated(req.params.id);
+  if (!filePath) {
+    throw new HttpError(404, 'generated_not_found', 'Image not found');
   }
   res.sendFile(filePath, { headers: { 'Cache-Control': 'private, max-age=31536000, immutable' } });
 });

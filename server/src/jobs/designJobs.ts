@@ -1,5 +1,5 @@
 import { DESIGN_STAGES, type DesignJob, type Room } from '@nice-home/shared';
-import { generateDesign } from '../pipeline/generateDesign';
+import { generateDesign, visualizeDesign, type DesignRecord } from '../pipeline/generateDesign';
 import { NoProvidersAvailableError } from '../services/product-engine/ProductEngine';
 import { services } from '../services/registry';
 import { saveDesign } from '../storage/designs';
@@ -51,4 +51,34 @@ async function run(job: DesignJob, room: Room): Promise<void> {
         : { code: 'generation_failed', message: 'Design generation failed' };
     if (!(error instanceof NoProvidersAvailableError)) console.error(error);
   }
+}
+
+/** Creates (or retries) the visualization of an existing design in the background. Only the `generate` stage runs. */
+export function startVisualizationJob(record: DesignRecord, room: Room): DesignJob {
+  const job: DesignJob = {
+    id: newId(),
+    roomId: room.id,
+    status: 'running',
+    stages: [{ id: 'generate', status: 'pending' }],
+    designId: record.design.id,
+  };
+  jobs.set(job.id, job);
+
+  void (async () => {
+    try {
+      const updated = await visualizeDesign(record, room, services.generator, (progress) => {
+        job.stages = job.stages.map((stage) => (stage.id === progress.id ? progress : stage));
+      });
+      await saveDesign(updated);
+      job.status = 'done';
+    } catch (error) {
+      job.status = 'failed';
+      job.error = { code: 'generation_failed', message: 'Visualization failed' };
+      console.error(error);
+    } finally {
+      setTimeout(() => jobs.delete(job.id), FINISHED_JOB_TTL_MS).unref();
+    }
+  })();
+
+  return job;
 }

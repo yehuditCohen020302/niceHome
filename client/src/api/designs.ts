@@ -23,3 +23,8 @@ export function startDesignJob(roomId: string, signal?: AbortSignal): Promise<De
 export function getDesignJob(jobId: string, signal?: AbortSignal): Promise<DesignJob> {
   return apiRequest<DesignJob>(`/designs/jobs/${encodeURIComponent(jobId)}`, { signal });
 }
+
+/** Creates (or retries) the visualization for an existing design; poll the job for progress. */
+export function startVisualization(designId: string, signal?: AbortSignal): Promise<DesignJob> {
+  return apiRequest<DesignJob>(`/designs/${encodeURIComponent(designId)}/visualize`, { method: 'POST', signal });
+}

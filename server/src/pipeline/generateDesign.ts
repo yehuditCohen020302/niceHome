@@ -11,7 +11,11 @@ import { newId } from '../storage/ids';
 import { CATEGORY_BUDGET_WEIGHT } from './budgetWeights';
 import type { DesignPlanner } from '../services/design-planner/DesignPlanner';
 import type { ImageAnalyzer } from '../services/image-analysis/ImageAnalyzer';
-import type { ImageGenerator } from '../services/image-generation/ImageGenerator';
+import {
+  GenerationError,
+  type GenerationRequest,
+  type ImageGenerator,
+} from '../services/image-generation/ImageGenerator';
 import type { ProductEngine } from '../services/product-engine/ProductEngine';
 import { mapProducts, type SelectedProduct } from '../services/product-mapping/mapProducts';
 import type { ProductRanker } from '../services/product-ranker/ProductRanker';
@@ -112,10 +116,11 @@ export async function generateDesign(
   onProgress({ id: 'search', status: 'done', done: total, total });
 
   const chosenProducts = selected.map(({ ranked }) => productsById.get(ranked[0]!.productId)!);
-  onProgress({ id: 'generate', status: 'active' });
-  const generation = await generator.generate(room, chosenProducts);
-  // No image means no generator is connected yet: report it as skipped, not as done.
-  onProgress({ id: 'generate', status: generation.imageUrl ? 'done' : 'skipped' });
+  const { generatedImageUrl, generationError } = await renderVisualization(
+    generator,
+    { room, items: selected.map(({ spec }, index) => ({ spec, product: chosenProducts[index]! })) },
+    onProgress,
+  );
 
   onProgress({ id: 'map', status: 'active' });
   const items = mapProducts(analysis, selected);
@@ -140,7 +145,8 @@ export async function generateDesign(
   const design: Design = {
     id: newId(),
     roomId: room.id,
-    generatedImageUrl: generation.imageUrl,
+    generatedImageUrl,
+    ...(generationError ? { generationError } : {}),
     style: plan.style,
     budget: room.budget,
     specs,
@@ -154,4 +160,66 @@ export async function generateDesign(
 
   onProgress({ id: 'map', status: 'done' });
   return { design, products, stores };
+}
+
+/**
+ * Runs the image generator and reports the `generate` stage. Never throws: a failed
+ * visualization must not throw away a valid design of real products — the design keeps
+ * no image, and the reason is shown to the user.
+ */
+export async function renderVisualization(
+  generator: ImageGenerator,
+  request: GenerationRequest,
+  onProgress: ProgressListener,
+): Promise<{ generatedImageUrl: string | null; generationError?: Design['generationError'] }> {
+  onProgress({ id: 'generate', status: 'active' });
+  let generatedImageUrl: string | null = null;
+  let generationError: Design['generationError'];
+  try {
+    generatedImageUrl = (await generator.generate(request)).imageUrl;
+  } catch (error) {
+    generationError =
+      error instanceof GenerationError
+        ? { code: error.code, message: error.message }
+        : { code: 'failed', message: 'Image generation failed' };
+    if (error instanceof GenerationError) console.warn(`[generation] ${error.code}: ${error.message}`);
+    else console.error(error);
+  }
+  // No image and no error means no generator is connected yet: skipped, not done.
+  onProgress({ id: 'generate', status: generatedImageUrl ? 'done' : generationError ? 'failed' : 'skipped' });
+  return { generatedImageUrl, ...(generationError ? { generationError } : {}) };
+}
+
+/** Creates (or retries) the visualization for an existing design, keeping its products and hotspots. */
+export async function visualizeDesign(
+  record: DesignRecord,
+  room: Room,
+  generator: ImageGenerator,
+  onProgress: ProgressListener = () => {},
+): Promise<DesignRecord> {
+  const { design } = record;
+  const products = new Map(record.products.map((product) => [product.id, product]));
+  const specs = new Map(design.specs.map((spec) => [spec.id, spec]));
+  const items = design.items.flatMap((item) => {
+    const product = products.get(item.productId);
+    const spec = specs.get(item.specId);
+    return product && spec ? [{ product, spec }] : [];
+  });
+
+  const { generatedImageUrl, generationError } = await renderVisualization(generator, { room, items }, onProgress);
+  const { generationError: _previous, ...rest } = design;
+  return {
+    ...record,
+    design: {
+      ...rest,
+      generatedImageUrl,
+      ...(generationError ? { generationError } : {}),
+      pipeline: { ...design.pipeline, generation: generator.id },
+      mock:
+        design.pipeline.analysis === 'mock' ||
+        design.pipeline.productProviders.includes('mock') ||
+        generator.id === 'mock' ||
+        record.products.some((product) => product.mock),
+    },
+  };
 }

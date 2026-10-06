@@ -7,7 +7,7 @@ import { healthRouter } from './routes/health';
 import { mockAssetsRouter } from './routes/mockAssets';
 import { productsRouter, storesRouter } from './routes/products';
 import { roomsRouter } from './routes/rooms';
-import { uploadsRouter } from './routes/uploads';
+import { generatedRouter, uploadsRouter } from './routes/uploads';
 import { mockParts, startProductSources } from './services/registry';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
@@ -17,6 +17,7 @@ app.use(express.json());
 
 app.use('/api/health', healthRouter);
 app.use('/api/uploads', uploadsRouter);
+app.use('/api/generated', generatedRouter);
 app.use('/api/rooms', roomsRouter);
 app.use('/api/designs', designsRouter);
 app.use('/api/products', productsRouter);

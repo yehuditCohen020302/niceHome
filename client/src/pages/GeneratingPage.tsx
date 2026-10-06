@@ -17,6 +17,8 @@ export function GeneratingPage() {
   const { generate, starting } = useGenerateDesign();
 
   const job = state.status === 'tracking' ? state.job : null;
+  // A visualization job runs only the image stage for an existing design.
+  const visualizeOnly = job?.stages.length === 1 && job.stages[0]?.id === 'generate';
 
   useEffect(() => {
     if (job?.status !== 'done' || !job.designId) return;
@@ -37,8 +39,12 @@ export function GeneratingPage() {
 
   return (
     <section className="mx-auto max-w-lg px-4 py-14 sm:py-20">
-      <h1 className="text-center text-2xl font-bold tracking-tight sm:text-3xl">{t('generating.title')}</h1>
-      <p className="mt-2 text-center text-ink-muted text-balance">{t('generating.subtitle')}</p>
+      <h1 className="text-center text-2xl font-bold tracking-tight sm:text-3xl">
+        {t(visualizeOnly ? 'generating.visualizeTitle' : 'generating.title')}
+      </h1>
+      <p className="mt-2 text-center text-ink-muted text-balance">
+        {t(visualizeOnly ? 'generating.visualizeSubtitle' : 'generating.subtitle')}
+      </p>
 
       <ol className="mt-10 space-y-3" aria-live="polite">
         {(job?.stages ?? []).map((stage) => (
@@ -58,6 +64,11 @@ export function GeneratingPage() {
             )}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            {visualizeOnly && job.designId ? (
+              <Link to={`/designs/${job.designId}`} className={buttonClasses('primary')}>
+                {t('generating.backToDesign')}
+              </Link>
+            ) : (
             <button
               type="button"
               disabled={starting}
@@ -66,6 +77,7 @@ export function GeneratingPage() {
             >
               {t('generating.retry')}
             </button>
+            )}
             <Link to={`/rooms/${job.roomId}`} className={buttonClasses('secondary')}>
               {t('generating.backToRoom')}
             </Link>
@@ -81,6 +93,7 @@ const ICON_CLASSES: Record<DesignStageStatus, string> = {
   skipped: 'bg-line text-ink-muted',
   active: 'bg-accent-soft text-accent-strong',
   pending: 'border border-line text-transparent',
+  failed: 'bg-danger text-danger-ink',
 };
 
 function StageRow({ stage }: { stage: DesignStageProgress }) {
@@ -91,6 +104,10 @@ function StageRow({ stage }: { stage: DesignStageProgress }) {
     detail = t('generating.stage.searchProgress', { done: stage.done ?? 0, total: stage.total });
   } else if (stage.id === 'generate' && stage.status === 'skipped') {
     detail = t('generating.stage.generateSkipped');
+  } else if (stage.id === 'generate' && stage.status === 'active') {
+    detail = t('generating.stage.generateActive');
+  } else if (stage.id === 'generate' && stage.status === 'failed') {
+    detail = t('generating.stage.generateFailed');
   }
 
   return (
@@ -109,6 +126,7 @@ function StageRow({ stage }: { stage: DesignStageProgress }) {
           <span className="size-4 animate-spin rounded-full border-2 border-accent-strong/30 border-t-accent-strong" />
         )}
         {stage.status === 'skipped' && <span className="text-lg leading-none">–</span>}
+        {stage.status === 'failed' && <span className="text-base leading-none font-bold">!</span>}
       </span>
       <div className="min-w-0 flex-1">
         <p className="font-medium">{t(`generating.stage.${stage.id}`)}</p>

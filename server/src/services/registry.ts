@@ -10,6 +10,7 @@ import type { ImageAnalyzer } from './image-analysis/ImageAnalyzer';
 import { MockImageAnalyzer } from './image-analysis/MockImageAnalyzer';
 import type { ImageGenerator } from './image-generation/ImageGenerator';
 import { MockImageGenerator } from './image-generation/MockImageGenerator';
+import { OpenAiImageGenerator } from './image-generation/OpenAiImageGenerator';
 import { ProductEngine } from './product-engine/ProductEngine';
 import type { ProductProvider } from './product-engine/ProductProvider';
 import { RuleBasedRanker } from './product-ranker/RuleBasedRanker';
@@ -23,6 +24,11 @@ const ANALYZERS: Record<string, () => ImageAnalyzer> = {
 };
 const GENERATORS: Record<string, () => ImageGenerator> = {
   mock: () => new MockImageGenerator(),
+  openai: () => {
+    const { apiKey, baseUrl, imageModel, imageQuality } = config.openai;
+    if (!apiKey) throw new Error('GENERATION_ENGINE=openai needs OPENAI_API_KEY in .env');
+    return new OpenAiImageGenerator({ apiKey, baseUrl, model: imageModel, quality: imageQuality });
+  },
 };
 const maxAgeMs = config.priceTtlMinutes * 60 * 1000;
 const PRODUCT_PROVIDERS: Record<string, () => ProductProvider & { start?: () => Promise<void> }> = {

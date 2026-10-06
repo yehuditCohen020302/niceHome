@@ -5,6 +5,7 @@ import { ApiError } from '../api/client';
 import { getRoom } from '../api/rooms';
 import { buttonClasses } from '../components/buttonStyles';
 import { useGenerateDesign } from '../features/design/useGenerateDesign';
+import { useHealth } from '../features/health/HealthProvider';
 import { useI18n } from '../i18n';
 
 type RoomState =
@@ -56,6 +57,8 @@ export function RoomPage() {
 function RoomSummary({ room }: { room: Room }) {
   const { t, formatPrice } = useI18n();
   const { generate, starting, error } = useGenerateDesign();
+  const { state: health } = useHealth();
+  const sendsPhotoToAi = health.status === 'ready' && health.health.engines.generation !== 'mock';
   const none =<span className="text-ink-muted">{t('room.none')}</span>;
   const list = (items: string[]) => (items.length > 0 ? items.join(' · ') : none);
 
@@ -114,6 +117,7 @@ function RoomSummary({ room }: { room: Room }) {
               )}
               {starting ? t('room.generating') : t('room.generate')}
             </button>
+            {sendsPhotoToAi && <p className="text-center text-xs text-ink-muted">{t('room.privacy')}</p>}
             {error && (
               <p role="alert" className="rounded-2xl bg-danger px-4 py-3 text-sm text-danger-ink">
                 {t(error)}

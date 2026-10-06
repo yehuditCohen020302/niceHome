@@ -28,7 +28,8 @@ export function StatusBanner() {
       banners.push({ key: 'status.syncing', tone: 'notice' });
     }
     if (mockParts.products) banners.push({ key: 'status.mock', tone: 'notice' });
-    else if (mockParts.analysis || mockParts.generation) banners.push({ key: 'status.partialMock', tone: 'notice' });
+    else if (mockParts.generation) banners.push({ key: 'status.partialMock', tone: 'notice' });
+    else if (mockParts.analysis) banners.push({ key: 'status.analysisMock', tone: 'notice' });
   }
 
   if (banners.length === 0) return null;

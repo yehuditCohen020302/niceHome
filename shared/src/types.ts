@@ -148,8 +148,10 @@ export interface DesignPipelineInfo {
 export interface Design {
   id: string;
   roomId: string;
-  /** `null` while no image generation engine is connected. */
+  /** `null` when no image generation engine is connected, or generation failed (see `generationError`). */
   generatedImageUrl: string | null;
+  /** Why the visualization could not be created, when an engine is connected but failed. */
+  generationError?: { code: string; message: string };
   /** The style actually used (resolved from 'auto' when the user let us choose). */
   style: Style;
   budget: number | null;
@@ -174,8 +176,11 @@ export interface GenerateDesignRequest {
 export const DESIGN_STAGES = ['analyze', 'plan', 'search', 'generate', 'map'] as const;
 export type DesignStageId = (typeof DESIGN_STAGES)[number];
 
-/** `skipped` = the stage has no real implementation yet (e.g. no image generator connected). */
-export type DesignStageStatus = 'pending' | 'active' | 'done' | 'skipped';
+/**
+ * `skipped` = the stage has no real implementation yet (e.g. no image generator connected).
+ * `failed` = the stage ran and failed, but the rest of the design is still valid (used for image generation).
+ */
+export type DesignStageStatus = 'pending' | 'active' | 'done' | 'skipped' | 'failed';
 
 export interface DesignStageProgress {
   id: DesignStageId;

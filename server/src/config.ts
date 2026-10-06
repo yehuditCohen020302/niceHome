@@ -35,6 +35,13 @@ export const config = {
   /** Optional. Enables Google Shopping results via SerpApi. */
   serpApiKey: process.env.SERPAPI_KEY?.trim() || undefined,
   analysisEngine: process.env.ANALYSIS_ENGINE ?? 'mock',
-  generationEngine: process.env.GENERATION_ENGINE ?? 'mock',
+  /** Defaults to OpenAI when a key is configured, otherwise no visualization (clearly labeled). */
+  generationEngine: process.env.GENERATION_ENGINE?.trim() || (process.env.OPENAI_API_KEY?.trim() ? 'openai' : 'mock'),
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY?.trim() || undefined,
+    baseUrl: (process.env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    imageModel: process.env.OPENAI_IMAGE_MODEL?.trim() || 'gpt-image-2',
+    imageQuality: process.env.OPENAI_IMAGE_QUALITY?.trim() || 'medium',
+  },
   priceTtlMinutes: readNumber('PRICE_TTL_MINUTES', 360),
 } as const;

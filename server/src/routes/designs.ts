@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { DesignProductsResponse } from '@nice-home/shared';
 import { HttpError } from '../errors';
-import { getJob, startDesignJob } from '../jobs/designJobs';
+import { getJob, startDesignJob, startVisualizationJob } from '../jobs/designJobs';
 import { generateDesign } from '../pipeline/generateDesign';
 import { services } from '../services/registry';
 import { NoProvidersAvailableError } from '../services/product-engine/ProductEngine';
@@ -53,6 +53,21 @@ designsRouter.get('/jobs/:jobId', (req, res) => {
   const job = getJob(req.params.jobId);
   if (!job) throw new HttpError(404, 'job_not_found', 'Job not found');
   res.json(job);
+});
+
+/** Creates (or retries) the visualization for an existing design. Returns a job to poll. */
+designsRouter.post('/:id/visualize', async (req, res) => {
+  const record = await getDesignRecord(req.params.id);
+  if (!record) throw new HttpError(404, 'design_not_found', 'Design not found');
+  if (services.generator.id === 'mock') {
+    throw new HttpError(409, 'no_generator', 'No image generator is configured (set OPENAI_API_KEY in .env)');
+  }
+  if (record.design.items.length === 0) {
+    throw new HttpError(409, 'nothing_to_visualize', 'This design has no products to show');
+  }
+  const room = await getRoom(record.design.roomId);
+  if (!room) throw new HttpError(404, 'room_not_found', 'Room not found');
+  res.status(202).json(startVisualizationJob(record, room));
 });
 
 designsRouter.get('/:id', async (req, res) => {

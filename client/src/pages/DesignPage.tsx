@@ -8,6 +8,8 @@ import { ShoppingList } from '../components/design/ShoppingList';
 import { buttonClasses } from '../components/buttonStyles';
 import { buildEntries } from '../features/design/designEntries';
 import { useDesign, type LoadedDesign } from '../features/design/useDesign';
+import { useVisualize } from '../features/design/useVisualize';
+import { useHealth } from '../features/health/HealthProvider';
 import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { useI18n } from '../i18n';
 
@@ -47,6 +49,10 @@ function DesignView({ data }: { data: LoadedDesign }) {
   const { design, room } = data;
   const entries = useMemo(() => buildEntries(data), [data]);
   const desktop = useMediaQuery(DESKTOP_QUERY);
+  const { state: health } = useHealth();
+  const { visualize, starting, error: visualizeError } = useVisualize();
+  const generatorConnected = health.status === 'ready' && health.health.engines.generation !== 'mock';
+  const canVisualize = !design.generatedImageUrl && entries.length > 0;
 
   // A card is open when pinned by a click/tap, or (desktop only) while hovering a hotspot.
   const [pinned, setPinned] = useState<number | null>(null);
@@ -129,11 +135,17 @@ function DesignView({ data }: { data: LoadedDesign }) {
         </p>
       </header>
 
-      {(design.mock || !design.generatedImageUrl) && (
+      {design.generationError && (
+        <p role="alert" className="mb-4 rounded-2xl bg-danger px-5 py-3 text-sm text-danger-ink">
+          {t('design.notice.generationFailed', { reason: t(generationErrorKey(design.generationError.code)) })}
+        </p>
+      )}
+
+      {(design.mock || !design.generatedImageUrl || entries.length > 0) && (
         <aside className="mb-6 rounded-2xl bg-notice px-5 py-4 text-sm text-notice-ink">
           <p className="font-semibold">{t('design.notice.title')}</p>
           <ul className="mt-1 list-disc space-y-0.5 ps-5">
-            {!design.generatedImageUrl && <li>{t('design.notice.noImage')}</li>}
+            {design.generatedImageUrl ? <li>{t('design.notice.generated')}</li> : <li>{t('design.notice.noImage')}</li>}
             {entries.length > 0 && <li>{t(mockProducts ? 'design.notice.mockProducts' : 'design.notice.realProducts')}</li>}
             {usesRules && <li>{t('design.notice.rules')}</li>}
           </ul>
@@ -180,6 +192,32 @@ function DesignView({ data }: { data: LoadedDesign }) {
 
           {entries.length > 0 && view === 'interactive' && (
             <p className="text-center text-sm text-ink-muted">{t('design.tapHint')}</p>
+          )}
+
+          {canVisualize && generatorConnected && (
+            <div className="flex flex-col items-center gap-2 rounded-3xl border border-line bg-surface p-5 text-center">
+              <button
+                type="button"
+                onClick={() => visualize(design.id)}
+                disabled={starting}
+                className={buttonClasses('primary', 'lg')}
+              >
+                {starting && (
+                  <span className="size-4 animate-spin rounded-full border-2 border-canvas/40 border-t-canvas" aria-hidden />
+                )}
+                {starting ? t('visualize.starting') : t(design.generationError ? 'visualize.retry' : 'visualize.cta')}
+              </button>
+              <p className="text-xs text-ink-muted">{t('visualize.hint')}</p>
+              <p className="text-xs text-ink-muted">{t('room.privacy')}</p>
+              {visualizeError && (
+                <p role="alert" className="text-sm font-medium text-danger-ink">
+                  {t(visualizeError)}
+                </p>
+              )}
+            </div>
+          )}
+          {canVisualize && !generatorConnected && health.status === 'ready' && (
+            <p className="text-center text-xs text-ink-muted">{t('visualize.noGenerator')}</p>
           )}
         </div>
 
@@ -245,4 +283,11 @@ function DesignView({ data }: { data: LoadedDesign }) {
       </BottomSheet>
     </section>
   );
+}
+
+const GENERATION_ERRORS = ['auth', 'quota', 'rate_limited', 'rejected', 'timeout', 'unreachable', 'no_product_images'] as const;
+
+function generationErrorKey(code: string): `design.generationError.${(typeof GENERATION_ERRORS)[number] | 'other'}` {
+  const known = (GENERATION_ERRORS as readonly string[]).includes(code);
+  return `design.generationError.${known ? (code as (typeof GENERATION_ERRORS)[number]) : 'other'}`;
 }
