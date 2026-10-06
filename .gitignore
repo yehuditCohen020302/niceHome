@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+
+# Local user data: uploaded photos and generated designs
+server/data/*
+!server/data/.gitkeep
+
+*.log
+.DS_Store

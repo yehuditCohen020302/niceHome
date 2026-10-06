@@ -1,0 +1,915 @@
+# AI Room Shopping
+
+> **Visual Shopping for Your Home** — צלמו את החדר שלכם, ונראה לכם איך לשדרג אותו עם מוצרים אמיתיים שאפשר לקנות.
+
+אפליקציית Web שרצה מקומית על המחשב של המשתמש. מעלים תמונה אמיתית של חדר, מגדירים תקציב, סגנון ומגבלות, ומקבלים הדמיה של **אותו חדר** לאחר שדרוג — כשכל פריט בהדמיה הוא מוצר אמיתי שנמצא **לפני** יצירת ההדמיה, עם חנות, מחיר עדכני וקישור לרכישה.
+
+```text
+Upload → Analyze → Plan → Find Real Products → Generate Room With Those Products → Shop
+```
+
+> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט) הושלם. ראו [Phase 1 — Milestones](#phase-1--milestones).
+
+---
+
+## תוכן עניינים
+
+1. [חזון המוצר](#חזון-המוצר)
+2. [האתגר המרכזי: מוצר שבאמת אפשר לקנות](#האתגר-המרכזי-מוצר-שבאמת-אפשר-לקנות)
+3. [עקרונות מוצר מחייבים](#עקרונות-מוצר-מחייבים)
+4. [קהל יעד](#קהל-יעד)
+5. [היקף ה-MVP](#היקף-ה-mvp)
+6. [הרצה מקומית ודרישת אינטרנט](#הרצה-מקומית-ודרישת-אינטרנט)
+7. [User Flow](#user-flow)
+8. [מסכים ופיצ'רים](#מסכים-ופיצרים)
+9. [ארכיטקטורה](#ארכיטקטורה)
+10. [Product Engine](#product-engine)
+11. [Data Model](#data-model)
+12. [API](#api)
+13. [Mock Data](#mock-data)
+14. [עיצוב, Responsive ו-RTL](#עיצוב-responsive-ו-rtl)
+15. [Technology Stack](#technology-stack)
+16. [מבנה תיקיות מתוכנן](#מבנה-תיקיות-מתוכנן)
+17. [תוכנית עבודה (Phases)](#תוכנית-עבודה-phases)
+18. [Phase 1 — Milestones](#phase-1--milestones)
+19. [הגדרת Done ל-Phase 1](#הגדרת-done-ל-phase-1)
+20. [סיכונים ושאלות פתוחות](#סיכונים-ושאלות-פתוחות)
+21. [כללי פיתוח](#כללי-פיתוח)
+22. [פיצ'רים עתידיים](#פיצרים-עתידיים)
+
+---
+
+## חזון המוצר
+
+המטרה אינה רק לתת רעיונות לעיצוב, אלא לענות על השאלה:
+
+> **"מה אני יכולה לקנות כדי שהחדר שלי ייראה ככה?"**
+
+המשתמש צריך לראות:
+
+1. את החדר האמיתי שלו.
+2. גרסה משודרגת של אותו חדר.
+3. אילו פריטים חדשים נוספו או הוחלפו.
+4. עבור כל פריט — מוצר אמיתי, חנות, מחיר וקישור לרכישה.
+5. רשימת קניות מלאה עם מחיר כולל.
+
+### תרחיש לדוגמה
+
+המשתמשת מעלה תמונה של הסלון וכותבת:
+
+> "אני גרה בירושלים. אני רוצה לשדרג את הסלון בלי להחליף את הספה והשולחן. התקציב שלי הוא עד 2,000 ₪. אני רוצה סגנון חם ומודרני."
+
+המערכת מחזירה הדמיה של אותו סלון לאחר השדרוג, עם נקודות אינטראקטיביות (Hotspots) על הפריטים שנוספו. לחיצה על עציץ, למשל, מציגה:
+
+```text
+עציץ קרמיקה לבן
+129 ₪
+חנות X
+זמין למשלוח לירושלים
+המחיר עודכן לפני 2 שעות
+[למוצר]
+```
+
+---
+
+## האתגר המרכזי: מוצר שבאמת אפשר לקנות
+
+> **איך יודעים שהמוצר שמופיע בתמונה באמת ניתן לקנייה, ובמחיר שמוצג?**
+
+זה הלב של המוצר. הפתרון: **קודם מוצאים מוצרים אמיתיים, ורק אחר כך מייצרים את ההדמיה כשהמוצרים האלה הם הרפרנס.**
+
+```text
+✗  לא:  Generate beautiful room → ננסה למצוא דברים דומים
+✓  כן:  Find real products → Generate room using these products
+```
+
+### Pipeline
+
+```text
+📷 תמונת המשתמש
+        ↓
+🤖 ניתוח החדר
+        ↓
+🎨 החלטה מה לשנות          ← AI מייצר מפרט מוצרים (ProductSpec), בלי מחירים ובלי חנויות
+        ↓
+🛍️ חיפוש מוצרים אמיתיים    ← Product Engine, מול מקורות נתונים בלבד
+        ↓
+💰 סינון לפי מחיר
+        ↓
+📦 בדיקת זמינות
+        ↓
+🏅 דירוג מועמדים            ← AI מדרג רק מתוך המוצרים שהוחזרו
+        ↓
+🖼️ יצירת ההדמיה             ← תמונות המוצרים הנבחרים משמשות כרפרנס
+        ↓
+🔗 חיבור כל פריט למוצר
+        ↓
+🛒 רשימת קניות
+```
+
+### הפרדה מוחלטת בין AI לנתונים מסחריים
+
+| מי | מה הוא עושה | מה אסור לו |
+| --- | --- | --- |
+| **AI (Design Planner)** | מחליט מה להוסיף: *"עציץ גדול מקרמיקה לבנה, סגנון מודרני, עד 150 ₪"* | להמציא מוצר, מחיר, חנות, URL או זמינות |
+| **Product Engine** | מחזיר מוצרים אמיתיים שעומדים בתנאים: *"הנה 37 מוצרים"* | — (מקור האמת לנתונים מסחריים) |
+| **AI (Ranker)** | מדרג את המועמדים: *מוצר A — 94%, מוצר B — 89%, מוצר C — 85%* | להוסיף מוצר שלא הגיע מה-Product Engine, או לשנות את נתוניו |
+
+דוגמה לזרימה עבור פריט אחד:
+
+```text
+Product Search
+  ↓ קטגוריה: שטיח
+  ↓ מחיר: 0–600 ₪
+  ↓ ישראל
+  ↓ במלאי
+  ↓ מתאים לסגנון
+  ↓ 20 מוצרים
+  ↓ AI מדרג
+  ↓ 3 מוצרים מומלצים (הראשון נכנס להדמיה, השאר נשמרים כחלופות)
+```
+
+### מחיר הוא נתון שמשתנה
+
+לא שומרים `price: 129` ומסתמכים עליו לאורך זמן. כל מוצר נושא:
+
+```ts
+price: 129,
+currency: "ILS",
+availability: "in_stock",
+lastUpdated: "2026-10-06T10:15:00Z",
+```
+
+ומתעדכן מה-feed/API. הכללים:
+
+- כל מחיר מוצג למשתמש יחד עם זמן העדכון האחרון.
+- מוצר שהמידע עליו ישן מסף מוגדר (TTL) מסומן כ"מחיר לא מאומת" ומרוענן לפני הצגה.
+- לפני מעבר לחנות / הצגת רשימת הקניות — ניסיון רענון של מחיר וזמינות.
+- אם הרענון נכשל — מציגים את המחיר האחרון הידוע **עם אזהרה ברורה**, ולא כאילו הוא עדכני.
+
+---
+
+## עקרונות מוצר מחייבים
+
+### 1. מוצר אמיתי, לא "דומה"
+
+כל אובייקט בהדמיה מקושר למוצר שאפשר לקנות בפועל:
+
+```text
+Real Product → Product ID → Generated Image Object → Hotspot → Store → Price → Purchase URL
+```
+
+הערך המרכזי: **"אני רואה משהו שאני אוהבת → אני יודעת בדיוק איפה לקנות אותו."**
+
+### 2. אין להמציא מידע
+
+אסור להמציא מחיר, חנות, URL או זמינות. אם אין מידע אמיתי — מציגים זאת בבירור למשתמש.
+
+### 3. "זה הסלון שלי"
+
+ההדמיה חייבת לשמור על החדר המקורי:
+
+- אין לשנות את מבנה החדר, להזיז קירות או להחליף חלונות.
+- אין להחליף רצפה אלא אם המשתמש ביקש.
+- יש לשמור על זווית הצילום, הפרופורציות, ומיקום הספה, הטלוויזיה והחלונות.
+- פריט שהמשתמש סימן כ"אסור לשנות" (למשל ספה) **חייב** להישאר כפי שהוא בהדמיה.
+
+### 4. ה-AI הוא מנגנון, לא המוצר
+
+בכל בחירה בין "עוד אפקט AI" לבין "עוד מידע שעוזר לקנות" — עדיפות למידע שעוזר לקנייה.
+
+### 5. שקיפות לגבי Mocks
+
+אין להציג Fake AI כאילו הוא AI אמיתי, ואין להציג מוצרי Mock כאילו הם מוצרים אמיתיים.
+
+### 6. אין Checkout מדומה
+
+אם המוצרים מגיעים ממספר חנויות, לא מעמידים פנים שיש Checkout אחד. במקום זאת: "עבור לחנות", "הוסף לרשימת קניות", "פתח מוצר".
+
+### 7. החלפה היא חיפוש, לא יצירה מחדש
+
+כשמשתמש אומר "יקר לי", המערכת לא מייצרת עיצוב חדש מאפס ומנחשת — היא מריצה חיפוש ממוקד עם אותו מפרט ותנאי מחיר מעודכן, ומחליפה רק את הפריט הזה.
+
+---
+
+## קהל יעד
+
+משתמשים שרוצים לשדרג את הבית, ו:
+
+- לא רוצים מעצב פנים, ולא יודעים מה לקנות.
+- מתקשים לדמיין איך מוצר ייראה בבית שלהם, ורוצים לראות את החדר לפני הקנייה.
+- רוצים מוצרים אמיתיים ולא רק השראה.
+- רוצים לקנות בישראל, לדעת מחיר מראש ולעבוד לפי תקציב.
+
+---
+
+## היקף ה-MVP
+
+ה-MVP מתמקד ב**סלון** בלבד.
+
+הארכיטקטורה מתוכננת כך שבעתיד ניתן יהיה להוסיף סוגי חדרים נוספים (חדר שינה, חדר ילדים, מטבח, מרפסת, משרד, חדר אמבטיה) ללא שכתוב — סוג החדר הוא פרמטר (`roomType`) ולא לוגיקה מקודדת.
+
+---
+
+## הרצה מקומית ודרישת אינטרנט
+
+### מודל ההרצה
+
+- האפליקציה רצה **מקומית על המחשב של המשתמש**: שרת Node.js מקומי + Frontend בדפדפן (`localhost`).
+- אין שרת מרכזי ואין חשבונות משתמש ב-MVP.
+- תמונות שהועלו ועיצובים שנוצרו נשמרים בתיקייה מקומית (`server/data/`, לא נכנסת ל-git).
+- מפתחות API (AI, ספקי מוצרים) נשמרים בקובץ `.env` מקומי בלבד, נקראים רק בשרת, ולא נשלחים לדפדפן.
+
+### חיבור לאינטרנט — חובה
+
+חיבור פעיל לאינטרנט נדרש עבור:
+
+- חיפוש מוצרים ורענון מחירים וזמינות מול מקורות חיצוניים.
+- שירותי AI (ניתוח תמונה, תכנון, דירוג, יצירת הדמיה) — מ-Phase 2 ואילך.
+- טעינת תמונות מוצרים מאתרי החנויות.
+
+התנהגות כשאין חיבור:
+
+- השרת בודק קישוריות, וה-UI מציג הודעה ברורה: *"אין חיבור לאינטרנט — לא ניתן לחפש מוצרים כרגע."*
+- **לא** מציגים מחירים או זמינות שמורים כאילו הם עדכניים.
+- מצב Mock (פיתוח) עובד גם בלי אינטרנט, ומסומן ככזה ב-UI.
+
+### פרטיות
+
+תמונת החדר נשמרת על המחשב. החל מ-Phase 2 היא תישלח לשירות ה-AI לצורך ניתוח ויצירת הדמיה — ה-UI יציין זאת למשתמש לפני השליחה.
+
+### דרישות מקדימות
+
+- Node.js 20 ומעלה (נבדק עם Node 22)
+- npm
+
+### התקנה והרצה
+
+```bash
+npm install
+cp .env.example .env     # אופציונלי — בלי הקובץ נטענות ברירות המחדל (מצב Mock)
+npm run dev              # מריץ שרת + client במקביל
+```
+
+לאחר מכן לפתוח בדפדפן את `http://localhost:5173`. השרת המקומי רץ על `http://localhost:3001`, וה-client מעביר אליו את בקשות `/api` דרך ה-proxy של Vite.
+
+פקודות נוספות:
+
+| פקודה | תיאור |
+| --- | --- |
+| `npm run typecheck` | בדיקת TypeScript בכל ה-workspaces |
+| `npm run build` | Build של ה-client ל-`client/dist` |
+
+בדיקה מהירה שהשרת עובד: `http://localhost:5173/api/health` מחזיר את מצב החיבור לאינטרנט ואת המימושים הפעילים.
+
+### קונפיגורציה (`.env`)
+
+| משתנה | תיאור | ברירת מחדל |
+| --- | --- | --- |
+| `PORT` | פורט השרת המקומי | `3001` |
+| `PRODUCT_PROVIDERS` | רשימת Providers פעילים, מופרדים בפסיק | `mock` |
+| `ANALYSIS_ENGINE` | מימוש ניתוח התמונה | `mock` |
+| `GENERATION_ENGINE` | מימוש יצירת ההדמיה | `mock` |
+| `PRICE_TTL_MINUTES` | אחרי כמה זמן מחיר נחשב לא מאומת | `360` |
+
+מפתחות API לשירותים חיצוניים יתווספו לטבלה כשהשירותים יחוברו.
+
+---
+
+## User Flow
+
+```text
+1. Upload photo
+2. Tell us what you want
+3. Set budget
+4. Generate
+5. See your room
+6. Click products
+7. Buy
+```
+
+עיקרון UX מנחה בכל מסך: **"האם המשתמש יודע מה לעשות עכשיו?"**
+
+---
+
+## מסכים ופיצ'רים
+
+### 1. Landing Page
+
+- כותרת: **"צלמו את החדר שלכם. אנחנו נראה לכם איך לשדרג אותו."**
+- תת-כותרת: "העלו תמונה, הגדירו תקציב וקבלו הדמיה של החדר שלכם עם מוצרים אמיתיים שאפשר לקנות."
+- CTA: **התחילו עכשיו**
+
+### 2. העלאת תמונה
+
+- כותרת: **"העלו תמונה של החדר"**
+- תמיכה ב-Drag & Drop, בחירת קובץ, ומצלמת מובייל.
+- הצגת Preview לאחר ההעלאה.
+- ולידציה: סוג קובץ (JPEG / PNG / WebP / HEIC אם נתמך) וגודל מקסימלי.
+
+### 3. פרטי השדרוג
+
+| שדה | סוג | אפשרויות |
+| --- | --- | --- |
+| **איזה חדר?** | בחירה יחידה | סלון (ברירת מחדל), חדר שינה, חדר ילדים, מטבח, מרפסת, אחר |
+| **מה תרצו לעשות?** | בחירה מרובה | שדרוג קטן, שינוי סגנון, הוספת אקססוריז, שינוי תאורה, וילונות, שטיח, תמונות, עציצים, כריות, שולחן/שולחנות, אחר |
+| **מה אסור לשנות?** | בחירה מרובה | ספה, שולחן, טלוויזיה, ארונות, קירות, רצפה, חלונות, דלתות |
+| **הערות חופשיות** | טקסט | למשל: "אני רוצה סגנון חם ומודרני" |
+
+### 4. תקציב
+
+- אפשרויות: עד 500 ₪ / עד 1,000 ₪ / עד 2,000 ₪ / עד 5,000 ₪ / ללא הגבלה.
+- או הזנת תקציב ידני.
+- התקציב מתורגם לתקרות מחיר לכל פריט ב-ProductSpec, ומשפיע ישירות על החיפוש.
+
+### 5. מיקום
+
+- מדינה (ברירת מחדל: ישראל) ועיר.
+- משמש לחנויות קרובות, זמינות, משלוח, עלות משלוח ואיסוף עצמי.
+- בעתיד: מיקום מדויק, מיקוד, מיקום מהמכשיר.
+
+### 6. סגנון
+
+Modern, Warm Modern, Minimalist, Scandinavian, Classic, Rustic, Luxury, Boho, Japandi — או **"תבחרו בשבילי"**.
+
+### 7. יצירת העיצוב
+
+לאחר שליחת הבקשה המערכת מריצה את ה-[Pipeline](#pipeline). ה-UI מציג התקדמות לפי שלבים אמיתיים, למשל:
+
+```text
+✓ מנתחים את החדר
+✓ מחליטים מה להוסיף
+● מחפשים מוצרים אמיתיים (3 מתוך 5 פריטים)
+○ יוצרים הדמיה
+```
+
+- אם לא נמצא מוצר אמיתי לפריט מסוים — הפריט **לא** נכנס להדמיה, וה-UI מציין: *"לא מצאנו וילון מתאים עד 400 ₪"*, עם הצעה להגדיל תקציב או לוותר.
+- Error state ברור בכל כישלון (אין אינטרנט, שירות לא זמין, תמונה לא תקינה).
+
+### 8. Interactive Image (מסך מרכזי)
+
+- ההדמיה מוצגת גדולה במרכז המסך.
+- על גבי ההדמיה — Hotspots לכל פריט שנוסף/הוחלף (עציץ, תמונה, שטיח, וילון, מנורה, כרית...).
+- Hover (דסקטופ) / Click (כל המכשירים) על Hotspot פותח Product Card.
+- מיקום ה-Hotspot נקבע לפי `x` / `y` ב-`DesignItem`.
+
+### 9. Product Card
+
+כל כרטיס מכיל:
+
+- תמונה אמיתית של המוצר
+- שם המוצר
+- מחיר + זמן עדכון אחרון
+- חנות
+- זמינות
+- משלוח
+- מרחק (אם רלוונטי)
+- דירוג (אם קיים)
+- קישור למוצר
+- תגית "נתוני דוגמה" אם `mock: true`
+
+שדה ללא מידע אמיתי מוצג כ"אין מידע" — לא מוסתר בשקט ולא מומצא.
+
+### 10. Shopping List — "מה צריך לקנות?"
+
+מתחת להדמיה:
+
+| מוצר | חנות | מחיר |
+| --- | --- | --- |
+| עציץ | Store A | 129 ₪ |
+| תמונה | Store B | 189 ₪ |
+| שטיח | Store C | 599 ₪ |
+| וילון | Store A | 249 ₪ |
+
+- **סה"כ: 1,166 ₪**
+- אם הוגדר תקציב (למשל 2,000 ₪): **נשארו 834 ₪ מהתקציב**
+- קיבוץ לפי חנות (כדי שיהיה ברור כמה חנויות צריך לבקר).
+- פעולות: "עבור לחנות", "הוסף לרשימת קניות", "פתח מוצר".
+- אזהרה אם אחד המחירים לא אומת לאחרונה.
+
+### 11. החלפת מוצר
+
+ליד כל מוצר — כפתור **"החלף"**, הפותח Drawer (דסקטופ) / Bottom Sheet (מובייל):
+
+```text
+שטיח שמנת
+599 ₪
+Store X
+[תמונה]
+
+אפשרויות
+○ המוצר המקורי
+○ דומה וזול יותר
+○ צבע אחר
+○ חנות אחרת
+○ עד 400 ₪
+
+[בחר מוצר]
+```
+
+אפשרויות החלפה: זול יותר, צבע אחר, סגנון אחר, חנות אחרת, מוצר דומה, עד X ₪.
+
+**איך זה עובד:** ההחלפה היא שאילתה ל-Product Engine על בסיס ה-ProductSpec של הפריט, עם השינוי שהמשתמש ביקש. לדוגמה, "יקר לי, עד 300 ₪":
+
+```text
+Find similar products
+WHERE category     = rug
+  AND style        = warm-modern
+  AND color        = cream
+  AND price       <= 300
+  AND availability = in_stock
+```
+
+קודם נבדקות החלופות שכבר נשמרו בזמן היצירה (מיידי), ואם אין מתאימה — חיפוש חדש.
+
+לאחר בחירת חלופה מתעדכנים: ה-Product Card, המחיר, רשימת הקניות, הסכום הכולל, וההדמיה (מ-Phase 3 — עריכה מקומית של אזור הפריט בלבד, לא יצירה מחדש של כל החדר).
+
+### 12. Budget Optimization — "שמור על התקציב"
+
+אם סך המוצרים חורג מהתקציב, המערכת מחפשת חלופות זולות יותר לפריטים היקרים ביותר:
+
+> "ההצעה הנוכחית עולה 1,400 ₪. מצאתי חלופות שיכולות להוריד אותה ל-970 ₪."
+
+CTA: **"חסוך בתקציב"** — מציג את ההחלפות המוצעות לאישור לפני ביצוען.
+
+### 13. Before / After
+
+Slider להשוואה בין התמונה המקורית להדמיה: `BEFORE ←→ AFTER`.
+
+---
+
+## ארכיטקטורה
+
+```text
+┌──────────── Browser (localhost) ────────────┐
+│  React UI  →  business logic  →  API client │
+└──────────────────────┬──────────────────────┘
+                       │ HTTP (localhost)
+┌──────────────────────▼──────────────────────┐
+│           Local Node.js server              │
+│                                             │
+│  Image Analysis   →  RoomAnalysis           │
+│        ↓                                    │
+│  Design Planner   →  ProductSpec[]          │  AI: מה להוסיף (בלי מחירים)
+│        ↓                                    │
+│  Product Engine   →  Product[] per spec     │  נתונים אמיתיים בלבד
+│        ↓                                    │
+│  Product Ranker   →  RankedCandidate[]      │  AI: דירוג מתוך המועמדים בלבד
+│        ↓                                    │
+│  Image Generation →  generated image        │  רפרנס: תמונות המוצרים שנבחרו
+│        ↓                                    │
+│  Product Mapping  →  Design (+ hotspots)    │
+│                                             │
+│  Local storage: server/data/ (uploads, designs)
+└──────────────────────┬──────────────────────┘
+                       │ Internet
+        ┌──────────────┼───────────────┐
+        ▼              ▼               ▼
+   AI services   Product sources   Store websites
+```
+
+| שירות | אחריות | קלט → פלט | Phase 1 | בהמשך |
+| --- | --- | --- | --- | --- |
+| **Image Analysis** | הבנת החדר: מבנה, ריהוט קיים, אזורים פנויים | תמונה → `RoomAnalysis` | Mock מבודד ומסומן | Phase 2 — מודל Vision |
+| **Design Planner** | החלטה מה להוסיף/להחליף, לפי סגנון, תקציב ומגבלות | ניתוח + העדפות → `ProductSpec[]` | כללים דטרמיניסטיים (לא מוצג כ-AI) | Phase 2 — LLM |
+| **Product Engine** | חיפוש, נרמול, סינון, רענון מחירים | `ProductSpec` → `Product[]` | `MockProductProvider` | Phase 4 — מקורות אמיתיים |
+| **Product Ranker** | דירוג מועמדים לפי התאמה לסגנון ולחדר | `Product[]` → `RankedCandidate[]` | דירוג לפי כללים (לא מוצג כ-AI) | Phase 2 — LLM / Vision |
+| **Image Generation** | יצירת ההדמיה עם המוצרים שנבחרו | תמונה + מוצרים → תמונה חדשה | אין יצירה — מוצג החדר המקורי עם Hotspots, ומסומן במפורש | Phase 3 — מודל יצירת/עריכת תמונה |
+| **Product Mapping** | קישור כל אובייקט בהדמיה למוצר + מיקום Hotspot | הדמיה + מוצרים → `DesignItem[]` | מיקומים מתוך ה-Mock | מתוך פלט ה-Generation / זיהוי אובייקטים |
+
+כל שירות מוגדר כ-interface, והמימוש נבחר לפי קונפיגורציה — כך ניתן להחליף Mock במימוש אמיתי בלי לשנות את שאר המערכת.
+
+בצד ה-Frontend יש הפרדה בין **UI** (קומפוננטות), **Business logic** (חישובי תקציב, state של העיצוב) ו-**API client** (שכבת קריאות לשרת).
+
+---
+
+## Product Engine
+
+ה-Product Engine הוא מקור האמת היחיד לנתונים מסחריים במערכת.
+
+### מקורות נתונים
+
+לא כל חנות ישראלית מספקת API או product feed, ולכן המערכת בנויה לצרוך כמה סוגי מקורות:
+
+```text
+                    ┌── Store API
+                    │
+                    ├── Affiliate Feed
+                    │
+Product Engine ─────┼── Merchant Feed
+                    │
+                    ├── Marketplace API
+                    │
+                    └── Approved crawling   (רק באישור החנות / בהתאם לתנאי השימוש)
+```
+
+כל מקור ממומש כ-`ProductProvider`:
+
+```ts
+interface ProductProvider {
+  id: string;
+  searchProducts(params: ProductSearchParams): Promise<RawProduct[]>;
+  getProduct(externalId: string): Promise<RawProduct | null>; // לרענון מחיר וזמינות
+}
+```
+
+### Normalization
+
+כל Provider מחזיר נתונים בפורמט שלו. שכבת הנרמול ממפה אותם למודל `Product` אחיד:
+
+```text
+IKEA:          "FEJKA plant 12 cm"
+חנות אחרת:     "עציץ מלאכותי FEJKA"
+                        ↓
+                  Product Model
+   name · price · currency · image · store · url · category
+   color · material · dimensions · availability · lastUpdated
+```
+
+- מיפוי קטגוריות של כל מקור לקטגוריות פנימיות (`rug`, `plant`, `wall-art`, `curtain`, `lamp`, `cushion`, `side-table`...).
+- נרמול צבעים וחומרים לערכים מוגדרים.
+- זיהוי כפילויות בין מקורות (לפי GTIN/ברקוד כשקיים, אחרת לפי התאמת שם + מידות).
+
+### תהליך חיפוש
+
+1. שאילתה מקבילה לכל ה-Providers הפעילים.
+2. נרמול התוצאות.
+3. סינון קשיח: קטגוריה, טווח מחיר, מדינה, זמינות (`in_stock`), מידות אם רלוונטי.
+4. הסרת כפילויות.
+5. העברת המועמדים (עד N) ל-Product Ranker.
+
+### רענון מחירים
+
+- לכל מוצר `lastUpdated`.
+- אם עבר `PRICE_TTL_MINUTES` — רענון דרך `getProduct` לפני הצגה.
+- Cache מקומי קצר-טווח כדי לא להעמיס על המקורות.
+
+---
+
+## Data Model
+
+```ts
+interface Room {
+  id: string;
+  imageUrl: string;
+  roomType: RoomType;               // 'living-room' ב-MVP
+  goals: string[];                  // מה תרצו לעשות
+  constraints: string[];            // מה אסור לשנות, למשל ['sofa', 'table']
+  notes?: string;
+  location?: { country: string; city: string };
+  budget?: number | null;           // null = ללא הגבלה
+  style?: Style | 'auto';
+  createdAt: string;
+}
+
+interface RoomAnalysis {
+  roomId: string;
+  detectedObjects: { type: string; x: number; y: number; width: number; height: number }[];
+  freeZones: { id: string; x: number; y: number; width: number; height: number }[];
+  mock: boolean;
+}
+
+/** מה ה-AI רוצה להוסיף — ללא מחיר, חנות או מוצר ספציפי */
+interface ProductSpec {
+  id: string;
+  category: ProductCategory;
+  description: string;              // "עציץ גדול מקרמיקה לבנה"
+  style?: Style;
+  colors?: string[];
+  materials?: string[];
+  maxPrice?: number;
+  maxDimensionsCm?: { width?: number; height?: number; depth?: number };
+  placementZoneId?: string;         // איפה בחדר הוא אמור להיות
+}
+
+interface Product {
+  id: string;                       // מזהה פנימי
+  providerId: string;               // מאיזה מקור הגיע
+  externalId: string;               // מזהה אצל המקור
+  gtin?: string;
+  name: string;
+  description?: string;
+  price: number;
+  currency: string;                 // 'ILS'
+  imageUrl: string;
+  productUrl: string;
+  storeId: string;
+  category: ProductCategory;
+  colors?: string[];
+  materials?: string[];
+  dimensionsCm?: { width?: number; height?: number; depth?: number };
+  availability: 'in_stock' | 'out_of_stock' | 'preorder' | 'unknown';
+  shippingAvailable?: boolean;
+  city?: string;
+  rating?: number;
+  lastUpdated: string;              // ISO — מתי המחיר והזמינות אומתו
+  mock: boolean;                    // true לכל מוצר שאינו אמיתי
+}
+
+interface Store {
+  id: string;
+  name: string;
+  website: string;
+  logoUrl?: string;
+  city?: string;
+  address?: string;
+  mock: boolean;
+}
+
+interface RankedCandidate {
+  productId: string;
+  matchScore: number;               // 0–1
+  reason?: string;                  // הסבר קצר להתאמה
+}
+
+interface Design {
+  id: string;
+  roomId: string;
+  generatedImageUrl: string | null; // null כשאין עדיין Image Generation
+  style: Style;
+  items: DesignItem[];
+  totalPrice: number;               // מחושב מהמוצרים הנבחרים
+  unmatchedSpecs: ProductSpec[];    // פריטים שלא נמצא להם מוצר אמיתי
+  createdAt: string;
+}
+
+interface DesignItem {
+  specId: string;
+  productId: string;                // המוצר שנבחר
+  alternatives: RankedCandidate[];  // חלופות שנשמרו להחלפה מהירה
+  x: number;                        // מיקום ה-Hotspot, יחסי (0–1)
+  y: number;
+  width?: number;
+  height?: number;
+  generatedObjectType: string;
+}
+```
+
+### הערות
+
+- `x` / `y` נשמרים כערכים יחסיים (0–1) ביחס לגודל התמונה, כדי שה-Hotspots ימוקמו נכון בכל רזולוציה ובכל גודל מסך.
+- `constraints` מועבר לכל שלבי ה-Pipeline.
+- `totalPrice` תמיד מחושב מחדש מהמוצרים — לעולם לא נקבע ידנית.
+- `RoomType`, `Style` ו-`ProductCategory` הם ערכים מתוך רשימות מוגדרות ב-`shared/`, כדי לאפשר הרחבה עתידית.
+
+---
+
+## API
+
+כל ה-API רץ על השרת המקומי.
+
+| Method | Endpoint | תיאור |
+| --- | --- | --- |
+| `GET` | `/api/health` | מצב השרת, קישוריות לאינטרנט, ומימושים פעילים (mock / real) |
+| `POST` | `/api/rooms` | יצירת Room (העלאת תמונה + העדפות) |
+| `POST` | `/api/rooms/{roomId}/analyze` | ניתוח תמונת החדר |
+| `POST` | `/api/designs/generate` | הרצת ה-Pipeline המלא עבור Room |
+| `GET` | `/api/designs/{designId}` | שליפת Design |
+| `GET` | `/api/designs/{designId}/products` | המוצרים ב-Design (כולל Hotspots וחלופות) |
+| `GET` | `/api/products/search` | חיפוש מוצרים (קטגוריה, מחיר מקסימלי, סגנון, צבע, מיקום...) |
+| `GET` | `/api/products/{productId}` | פרטי מוצר |
+| `POST` | `/api/products/{productId}/refresh` | רענון מחיר וזמינות מול המקור |
+| `GET` | `/api/stores` | רשימת חנויות |
+| `POST` | `/api/designs/{designId}/replace-product` | החלפת מוצר (לפי קריטריון: זול יותר, צבע אחר, חנות אחרת, עד X ₪...) |
+| `POST` | `/api/designs/{designId}/optimize-budget` | הצעת חלופות להורדת המחיר הכולל לתקציב |
+
+כל תגובה שמכילה נתוני Mock מסמנת זאת במפורש, כדי שה-UI יוכל להציג זאת למשתמש.
+
+---
+
+## Mock Data
+
+לצורך פיתוח Phase 1 ייווצר `MockProductProvider` עם מוצרים ישראליים לדוגמה.
+
+- **כל** מוצר וחנות Mock מסומנים `mock: true`.
+- ה-UI מציג בבירור שמדובר בנתוני דוגמה (באנר גלובלי + תגית על כל כרטיס).
+- קישורי המוצרים ב-Mock אינם מובילים לחנויות אמיתיות, וה-UI מציין זאת.
+- ה-Mock מבודד במודול נפרד, ונבחר דרך `PRODUCT_PROVIDERS=mock`.
+
+אותו עיקרון חל על Image Analysis, Design Planner, Product Ranker ו-Image Generation: מימושי Mock / כללים מבודדים ומסומנים, ולא מוצגים כ-AI אמיתי.
+
+---
+
+## עיצוב, Responsive ו-RTL
+
+### שפה עיצובית
+
+- Modern, Clean, Premium, Minimal, Very visual.
+- הדגש על התמונות — לא Dashboard עמוס.
+- תחושה של Pinterest + IKEA + AI + Shopping, עם זהות עיצובית מקורית.
+
+### Responsive
+
+| מכשיר | התנהגות |
+| --- | --- |
+| **Desktop** | הדמיה גדולה במרכז, Product Card כ-Popover ליד ה-Hotspot, Drawer להחלפת מוצר |
+| **Tablet** | פריסה מותאמת, Hotspots בגודל מגע |
+| **Mobile** | התמונה במרכז, Hotspots גדולים ונוחים ללחיצה, מידע מוצר נפתח ב-**Bottom Sheet** |
+
+> האפליקציה רצה מקומית, אך ניתן לגשת אליה מהטלפון באותה רשת (Vite `--host`) כדי לצלם את החדר ישירות.
+
+### RTL ו-i18n
+
+- תמיכה מלאה בעברית RTL (`dir="rtl"`).
+- שימוש ב-CSS logical properties (`margin-inline-start` וכו') במקום left/right.
+- כל הטקסטים בקבצי תרגום ולא מקודדים בקומפוננטות — כדי לאפשר הוספת אנגלית בעתיד.
+- פורמט מחיר ומטבע דרך `Intl.NumberFormat`, ותאריכים יחסיים ("לפני 2 שעות") דרך `Intl.RelativeTimeFormat`.
+
+### States
+
+כל מסך כולל Loading state, Error state (כולל "אין אינטרנט") ו-Empty state.
+
+---
+
+## Technology Stack
+
+ה-Repository חדש, ולכן נבחר ה-Stack המומלץ באיפיון:
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- React Router
+- Tailwind CSS
+
+### Backend
+
+- Node.js
+- TypeScript
+- Express (שרת HTTP מקומי)
+- אחסון מקומי בקבצים (`server/data/`) ב-Phase 1
+
+### Monorepo
+
+- npm workspaces: `client`, `server`, `shared`
+
+---
+
+## מבנה תיקיות מתוכנן
+
+```text
+nice-home/
+├── client/                     # Frontend — React + Vite
+│   └── src/
+│       ├── pages/              # Landing, Upload, Configure, Generating, Result
+│       ├── components/         # InteractiveImage, Hotspot, ProductCard,
+│       │                       # ShoppingList, BeforeAfterSlider, ReplaceDrawer
+│       ├── features/           # Business logic: design state, budget calc
+│       ├── api/                # API client
+│       └── i18n/               # קבצי תרגום (he, בעתיד en)
+├── server/                     # Backend — Node.js + TypeScript
+│   ├── src/
+│   │   ├── routes/             # health, rooms, designs, products, stores
+│   │   ├── pipeline/           # orchestration של שלבי ה-Pipeline
+│   │   ├── services/
+│   │   │   ├── image-analysis/
+│   │   │   ├── design-planner/
+│   │   │   ├── product-engine/ # search, normalization, filtering, refresh
+│   │   │   ├── product-ranker/
+│   │   │   ├── image-generation/
+│   │   │   └── product-mapping/
+│   │   ├── providers/
+│   │   │   ├── ProductProvider.ts
+│   │   │   └── mock/           # MockProductProvider + mock data (mock: true)
+│   │   └── config.ts           # קריאת .env ובחירת מימושים
+│   └── data/                   # uploads + designs מקומיים (gitignored)
+├── shared/                     # Types משותפים: Room, ProductSpec, Product, Design...
+├── .env.example
+└── package.json                # npm workspaces + סקריפט dev
+```
+
+> המבנה הוא הצעה ראשונית ויעודכן במהלך המימוש.
+
+---
+
+## תוכנית עבודה (Phases)
+
+העבודה מתבצעת בשלבים — לא בונים את כל המוצר בבת אחת. בסוף כל שלב האפליקציה חייבת לרוץ.
+
+### Phase 1 — Prototype מקצה לקצה
+
+כל ה-UX המלא, עם ה-Pipeline בסדר הנכון (מוצרים קודם, הדמיה אחר כך), על גבי Mocks מסומנים:
+
+Landing · Upload · Room configuration · Budget · Style · Mock analysis · Rule-based planner → ProductSpecs · Mock Product Engine · Hotspots · Product cards · Shopping list · Total price · החלפת מוצר · Budget optimization · Before/After
+
+### Phase 2 — AI לניתוח, תכנון ודירוג
+
+חיבור מודל Vision לניתוח החדר, LLM ליצירת `ProductSpec[]`, ו-AI לדירוג מועמדים.
+
+### Phase 3 — Image Generation
+
+יצירת ההדמיה עם תמונות המוצרים שנבחרו כרפרנס, תוך שמירה על מבנה החדר והמגבלות. עריכה מקומית בעת החלפת מוצר.
+
+### Phase 4 — Product Providers אמיתיים
+
+מחקר וחיבור מקורות מוצרים אמיתיים לישראל (ראו [סיכונים ושאלות פתוחות](#סיכונים-ושאלות-פתוחות)), נרמול ורענון מחירים.
+
+### Phase 5 — Location
+
+חנויות, זמינות ומשלוחים לפי מיקום.
+
+---
+
+## Phase 1 — Milestones
+
+| # | Milestone | תוצר | בדיקה |
+| --- | --- | --- | --- |
+| **M1** ✅ | הקמת הפרויקט | npm workspaces, Vite + React + TS + Tailwind, שרת Express, `shared/` types, RTL, i18n בסיסי, `npm run dev`, `/api/health` | האפליקציה עולה בדפדפן ומציגה Landing ריק ב-RTL |
+| **M2** | Landing + Upload | מסך פתיחה, העלאת תמונה (Drag & Drop / קובץ / מצלמה), Preview, שמירה מקומית בשרת | תמונה מועלית ומוצגת |
+| **M3** | הגדרות השדרוג | חדר, מטרות, מה אסור לשנות, תקציב, מיקום, סגנון → `POST /api/rooms` | Room נשמר עם כל ההעדפות |
+| **M4** | Pipeline עם Mocks | Mock analysis → planner מבוסס כללים → `ProductSpec[]` → Product Engine + `MockProductProvider` (סינון מחיר/זמינות/סגנון) → דירוג לפי כללים → Mapping | `POST /api/designs/generate` מחזיר Design שכל פריטיו בתוך התקציב ומסומנים mock |
+| **M5** | מסך תוצאה | התקדמות לפי שלבים, Interactive Image + Hotspots, Product Card (Popover / Bottom Sheet), Shopping List, סה"כ ויתרת תקציב, Before/After | לחיצה על Hotspot מציגה מוצר, והסכום נכון |
+| **M6** | החלפה ותקציב | Drawer החלפה (חלופות שמורות + חיפוש חדש), `optimize-budget` | החלפת מוצר מעדכנת כרטיס, רשימה וסכום |
+| **M7** | ליטוש | Loading / Error / Empty states, מצב "אין אינטרנט", Responsive מלא, בדיקה מקצה לקצה | כל סעיפי [הגדרת Done](#הגדרת-done-ל-phase-1) עוברים |
+
+---
+
+## הגדרת Done ל-Phase 1
+
+בסיום Phase 1 המשתמש יכול, ללא התערבות ידנית:
+
+- [ ] להעלות תמונה של הסלון
+- [ ] לבחור תקציב
+- [ ] לבחור סגנון
+- [ ] להגדיר מה אסור לשנות
+- [ ] לקבל עיצוב חדש
+- [ ] לראות את העיצוב
+- [ ] לזהות את הפריטים שנוספו
+- [ ] ללחוץ על פריט
+- [ ] לראות Product Card
+- [ ] לראות מחיר
+- [ ] לראות חנות
+- [ ] לראות קישור למוצר
+- [ ] לראות Shopping List
+- [ ] לראות Total Price
+- [ ] להחליף מוצר
+- [ ] לראות את המחיר מתעדכן
+
+ובנוסף: כל נתון Mock מסומן ככזה ב-UI.
+
+---
+
+## סיכונים ושאלות פתוחות
+
+| נושא | הסיכון | כיוון |
+| --- | --- | --- |
+| **מקורות מוצרים בישראל** | לא כל חנות ישראלית מספקת API או feed | לבדוק **לפני** Phase 4: אילו חנויות ישראליות (ריהוט, עיצוב הבית, אקססוריז) מציעות API / Merchant feed / תוכנית Affiliate, ואילו Marketplaces פעילים בישראל |
+| **Crawling** | תנאי שימוש, חסימות, אמינות נתונים | רק באישור החנות או בהתאם לתנאי השימוש שלה, ותמיד כמקור עם `lastUpdated` |
+| **רעננות מחירים** | מחיר מוצג שכבר השתנה | TTL, רענון לפני הצגה, וסימון ברור של מחיר לא מאומת |
+| **נאמנות ההדמיה למוצר** | המוצר בהדמיה לא נראה כמו המוצר האמיתי | שימוש בתמונת המוצר כרפרנס ביצירה (Phase 3), והצגת תמונת המוצר האמיתית בכרטיס תמיד |
+| **שמירה על החדר** | מודל היצירה משנה קירות / ספה | עריכה מקומית (inpainting) באזורים מוגדרים בלבד, ומסכות על פריטים שאסור לשנות |
+| **עלויות API** | ניתוח, דירוג ויצירה עולים כסף בכל הרצה | Cache לתוצאות, והחלפת מוצר ללא יצירה מחדש של כל החדר |
+
+---
+
+## כללי פיתוח
+
+- TypeScript types לכל ישות ול-API, משותפים דרך `shared/`.
+- הפרדה בין UI / business logic / API.
+- הימנעות מ-hardcoded logic כאשר ניתן ליצור abstraction.
+- AI לעולם לא מייצר נתונים מסחריים — רק `ProductSpec` ודירוג.
+- Loading, Error ו-Empty states בכל מסך.
+- Responsive behavior בכל קומפוננטה.
+- אין Fake AI שמוצג כאילו הוא AI אמיתי — Mocks מבודדים ומסומנים.
+- אין להמציא מחיר, חנות, URL או זמינות.
+- מפתחות API רק ב-`.env` בשרת, לעולם לא ב-client ולא ב-git.
+- לוודא שהאפליקציה רצה לפני מעבר לשלב הבא.
+- המטרה: **MVP אמיתי עם UX מלא**, שבו ניתן להחליף את ה-Mocks בשירותים אמיתיים בלי לשכתב את האפליקציה.
+
+---
+
+## פיצ'רים עתידיים
+
+לא ימומשו כעת, אך הארכיטקטורה תאפשר להוסיף אותם:
+
+### משתמש ושמירה
+
+- User accounts
+- Favorites
+- Save Designs
+- Multiple rooms
+- Shopping lists
+- Share design
+
+### קנייה ומחירים
+
+- Price comparison
+- Price alerts
+- Affiliate links
+- Store partnerships
+
+### מיקום ומלאי
+
+- Local inventory
+- Delivery estimation
+- "Use only Israeli stores"
+- "Use only stores within 10km"
+
+### עיצוב
+
+- Generate multiple design alternatives
+- "Find similar"
+- "Make it cheaper"
+- "Make it more luxurious"
+- AR preview

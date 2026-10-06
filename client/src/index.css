@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Use logical utilities (ms-/me-/ps-/pe-/start-/end-)
+ * instead of left/right so layouts flip correctly between RTL and LTR.
+ */
+@theme {
+  --font-sans: 'Heebo', ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: #faf7f2;
+  --color-surface: #ffffff;
+  --color-ink: #2f2a24;
+  --color-ink-muted: #6f665c;
+  --color-line: #e8e1d6;
+  --color-accent: #b9773e;
+  --color-accent-strong: #9a5f2c;
+  --color-accent-soft: #f4e6d6;
+
+  --color-notice: #fdf3dc;
+  --color-notice-ink: #6b4e12;
+  --color-danger: #fbe6e3;
+  --color-danger-ink: #8a2a1d;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+  }
+}
