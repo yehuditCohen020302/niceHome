@@ -8,7 +8,7 @@
 Upload → Analyze → Plan → Find Real Products → Generate Room With Those Products → Shop
 ```
 
-> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט), M2 (מסך פתיחה והעלאת תמונה) ו-M3 (הגדרות השדרוג) הושלמו. ראו [Phase 1 — Milestones](#phase-1--milestones).
+> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט), M2 (מסך פתיחה והעלאת תמונה), M3 (הגדרות השדרוג) ו-M4 (Pipeline עם Mocks) הושלמו. ראו [Phase 1 — Milestones](#phase-1--milestones).
 
 ---
 
@@ -23,7 +23,7 @@ Upload → Analyze → Plan → Find Real Products → Generate Room With Those 
 7. [User Flow](#user-flow)
 8. [מסכים ופיצ'רים](#מסכים-ופיצרים)
 9. [ארכיטקטורה](#ארכיטקטורה)
-10. [Product Engine](#product-engine)
+10. [Product Engine](#product-engine) · [Pipeline](#pipeline--איך-נבנה-עיצוב-phase-1)
 11. [Data Model](#data-model)
 12. [API](#api)
 13. [Mock Data](#mock-data)
@@ -553,6 +553,54 @@ IKEA:          "FEJKA plant 12 cm"
 - אם עבר `PRICE_TTL_MINUTES` — רענון דרך `getProduct` לפני הצגה.
 - Cache מקומי קצר-טווח כדי לא להעמיס על המקורות.
 
+### המימוש הנוכחי (Phase 1)
+
+מה ש**כבר עובד** ב-`ProductEngine`:
+
+- שאילתה מקבילה לכל ה-Providers. ספק אחד שנכשל לא מפיל את האחרים; רק אם כולם נכשלו — שגיאה 503.
+- נרמול ל-`Product` עם מזהה פנימי `providerId:externalId`.
+- **דחיית רשומות בלי מחיר / מטבע / קישור / תמונה** — במקום להשלים אותן.
+- סינון קשיח: קטגוריה, `in_stock`, ILS בלבד, מחיר ≤ תקרה.
+- הסרת כפילויות לפי GTIN (נשמרת ההצעה הזולה).
+
+מה **עוד לא** ממומש: רענון מחירים לפי TTL ו-Cache — ייכנסו עם Providers אמיתיים.
+
+---
+
+## Pipeline — איך נבנה עיצוב (Phase 1)
+
+`POST /api/designs/generate` מריץ את השלבים לפי הסדר, ושומר את התוצאה ב-`server/data/designs/{id}.json`: העיצוב + צילום מצב של כל המוצרים והחנויות שהוא מפנה אליהם.
+
+| שלב | מימוש נוכחי | מה הוא עושה |
+| --- | --- | --- |
+| ניתוח חדר | `MockImageAnalyzer` (**mock**) | לא מסתכל על התמונה. מחזיר אזורים קבועים (רצפה, קיר, פינות, חלון, ספה, שולחן) של צילום סלון טיפוסי |
+| תכנון | `RuleBasedPlanner` (**כללים, לא AI**) | מתרגם מטרות לקטגוריות, מסיר קטגוריות שמתנגשות עם "אסור לשנות", עד 6 פריטים |
+| חלוקת תקציב | `pipeline/generateDesign.ts` | לכל פריט תקרה = חלקו היחסי (לפי משקל הקטגוריה) **ממה שנשאר**. כסף שלא נוצל עובר הלאה, והסכום הכולל לעולם לא עובר את התקציב |
+| חיפוש מוצרים | `ProductEngine` + `MockProductProvider` (**mock**) | 51 מוצרי דוגמה ב-12 קטגוריות (אחד מהם "אזל מהמלאי", כדי לבדוק את הסינון), 4 חנויות דוגמה |
+| דירוג | `RuleBasedRanker` (**כללים, לא AI**) | ניקוד: התאמת סגנון 50%, צבע 25%, דירוג 15%, התאמת מחיר 10%. נשמרים המוצר הנבחר + עד 3 חלופות |
+| יצירת הדמיה | `MockImageGenerator` (**mock**) | לא יוצר תמונה (`generatedImageUrl: null`). ה-UI מציג את התמונה המקורית ואומר זאת במפורש |
+| מיפוי | `mapProducts` | נקודה באזור של כל פריט; כמה פריטים באותו אזור מפוזרים באלכסון |
+
+**מטרות ← קטגוריות:**
+
+| מטרה | קטגוריות |
+| --- | --- |
+| שדרוג קטן | כריות, עציץ, שמיכה |
+| שינוי סגנון | שטיח, תמונה, כריות, מנורה |
+| הוספת אקססוריז | אגרטל, כריות, שמיכה |
+| שינוי תאורה | מנורה |
+| וילונות / שטיח / תמונות / עציצים / כריות | הקטגוריה עצמה |
+| שולחן/שולחנות | שולחן סלון, שולחן צד |
+| אחר | **כלום** — טקסט חופשי דורש AI; המסך מסביר זאת |
+
+**"אסור לשנות" ← קטגוריות שנחסמות:** שולחן ← שולחן סלון; קירות ← תמונה, מראה (דורשות קידוח); חלונות ← וילון.
+
+**"תבחרו בשבילי"** ← Warm Modern.
+
+פריט שלא נמצא לו מוצר בתוך התקרה שלו נרשם ב-`unmatchedSpecs`, ומוצג למשתמש, למשל: "לא מצאנו שטיח עד 136 ₪".
+
+מימושים נבחרים לפי `.env` דרך `server/src/services/registry.ts` — חיבור שירות אמיתי = הוספת רשומה שם.
+
 ---
 
 ## Data Model
@@ -682,6 +730,7 @@ interface DesignItem {
 | `GET` | `/api/products/{productId}` | פרטי מוצר |
 | `POST` | `/api/products/{productId}/refresh` | רענון מחיר וזמינות מול המקור |
 | `GET` | `/api/stores` | רשימת חנויות |
+| `GET` | `/api/mock-assets/products/{category}.svg?color=` | תמונת דוגמה למוצר mock (מסומנת "תמונת דוגמה") |
 | `POST` | `/api/designs/{designId}/replace-product` | החלפת מוצר (לפי קריטריון: זול יותר, צבע אחר, חנות אחרת, עד X ₪...) |
 | `POST` | `/api/designs/{designId}/optimize-budget` | הצעת חלופות להורדת המחיר הכולל לתקציב |
 
@@ -773,18 +822,18 @@ nice-home/
 ├── server/                     # Backend — Node.js + TypeScript
 │   ├── src/
 │   │   ├── routes/             # health, uploads, rooms, designs, products, stores
-│   │   ├── storage/            # שמירת קבצים מקומית (uploads, rooms)
-│   │   ├── pipeline/           # orchestration של שלבי ה-Pipeline
+│   │   ├── storage/            # שמירת קבצים מקומית (uploads, rooms, designs)
+│   │   ├── pipeline/           # generateDesign + משקלי תקציב
 │   │   ├── services/
 │   │   │   ├── image-analysis/
 │   │   │   ├── design-planner/
 │   │   │   ├── product-engine/ # search, normalization, filtering, refresh
 │   │   │   ├── product-ranker/
 │   │   │   ├── image-generation/
-│   │   │   └── product-mapping/
+│   │   │   ├── product-mapping/
+│   │   │   └── registry.ts     # בחירת מימושים לפי .env
 │   │   ├── providers/
-│   │   │   ├── ProductProvider.ts
-│   │   │   └── mock/           # MockProductProvider + mock data (mock: true)
+│   │   │   └── mock/           # MockProductProvider, קטלוג דוגמה, תמונות דוגמה (mock: true)
 │   │   └── config.ts           # קריאת .env ובחירת מימושים
 │   └── data/                   # uploads + designs מקומיים (gitignored)
 ├── shared/                     # Types משותפים: Room, ProductSpec, Product, Design...
@@ -831,7 +880,7 @@ Landing · Upload · Room configuration · Budget · Style · Mock analysis · R
 | **M1** ✅ | הקמת הפרויקט | npm workspaces, Vite + React + TS + Tailwind, שרת Express, `shared/` types, RTL, i18n בסיסי, `npm run dev`, `/api/health` | האפליקציה עולה בדפדפן ומציגה Landing ריק ב-RTL |
 | **M2** ✅ | Landing + Upload | מסך פתיחה, העלאת תמונה (Drag & Drop / קובץ / מצלמה), Preview, שמירה מקומית בשרת | תמונה מועלית ומוצגת |
 | **M3** ✅ | הגדרות השדרוג | חדר, מטרות, מה אסור לשנות, תקציב, מיקום, סגנון → `POST /api/rooms` | Room נשמר עם כל ההעדפות |
-| **M4** | Pipeline עם Mocks | Mock analysis → planner מבוסס כללים → `ProductSpec[]` → Product Engine + `MockProductProvider` (סינון מחיר/זמינות/סגנון) → דירוג לפי כללים → Mapping | `POST /api/designs/generate` מחזיר Design שכל פריטיו בתוך התקציב ומסומנים mock |
+| **M4** ✅ | Pipeline עם Mocks | Mock analysis → planner מבוסס כללים → `ProductSpec[]` → Product Engine + `MockProductProvider` (סינון מחיר/זמינות/סגנון) → דירוג לפי כללים → Mapping | `POST /api/designs/generate` מחזיר Design שכל פריטיו בתוך התקציב ומסומנים mock |
 | **M5** | מסך תוצאה | התקדמות לפי שלבים, Interactive Image + Hotspots, Product Card (Popover / Bottom Sheet), Shopping List, סה"כ ויתרת תקציב, Before/After | לחיצה על Hotspot מציגה מוצר, והסכום נכון |
 | **M6** | החלפה ותקציב | Drawer החלפה (חלופות שמורות + חיפוש חדש), `optimize-budget` | החלפת מוצר מעדכנת כרטיס, רשימה וסכום |
 | **M7** | ליטוש | Loading / Error / Empty states, מצב "אין אינטרנט", Responsive מלא, בדיקה מקצה לקצה | כל סעיפי [הגדרת Done](#הגדרת-done-ל-phase-1) עוברים |

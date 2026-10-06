@@ -88,6 +88,8 @@ export interface Product {
   category: ProductCategory;
   colors?: string[];
   materials?: string[];
+  /** Style tags from the source, used for ranking. */
+  styles?: Style[];
   dimensionsCm?: Dimensions;
   availability: Availability;
   shippingAvailable?: boolean;
@@ -119,6 +121,8 @@ export interface RankedCandidate {
 export interface DesignItem extends Partial<RelativeBox> {
   specId: string;
   productId: string;
+  matchScore: number;
+  /** Other ranked candidates for the same spec, best first. Used for quick replacement. */
   alternatives: RankedCandidate[];
   /** Hotspot position, relative (0–1). */
   x: number;
@@ -126,16 +130,47 @@ export interface DesignItem extends Partial<RelativeBox> {
   generatedObjectType: string;
 }
 
+/**
+ * Which implementation produced each pipeline stage.
+ * Lets the UI state plainly which parts are mocks or simple rules rather than AI.
+ */
+export interface DesignPipelineInfo {
+  analysis: string;
+  planner: string;
+  productProviders: string[];
+  ranker: string;
+  generation: string;
+}
+
 export interface Design {
   id: string;
   roomId: string;
   /** `null` while no image generation engine is connected. */
   generatedImageUrl: string | null;
+  /** The style actually used (resolved from 'auto' when the user let us choose). */
   style: Style;
+  budget: number | null;
+  /** Every spec the planner produced, with the price cap that was actually searched. */
+  specs: ProductSpec[];
   items: DesignItem[];
+  /** Always computed from the selected products, never set by hand. */
   totalPrice: number;
+  /** Specs for which no real product matched the constraints. */
   unmatchedSpecs: ProductSpec[];
+  pipeline: DesignPipelineInfo;
+  /** True when any stage or any product is a mock. */
+  mock: boolean;
   createdAt: string;
+}
+
+export interface GenerateDesignRequest {
+  roomId: string;
+}
+
+/** Products and stores referenced by a design, including its alternatives. */
+export interface DesignProductsResponse {
+  products: Product[];
+  stores: Store[];
 }
 
 /** A room photo stored on the local server. */

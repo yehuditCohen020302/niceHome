@@ -4,6 +4,7 @@ import type { Room } from '@nice-home/shared';
 import { ApiError } from '../api/client';
 import { getRoom } from '../api/rooms';
 import { buttonClasses } from '../components/buttonStyles';
+import { useGenerateDesign } from '../features/design/useGenerateDesign';
 import { useI18n } from '../i18n';
 
 type RoomState =
@@ -54,7 +55,8 @@ export function RoomPage() {
 
 function RoomSummary({ room }: { room: Room }) {
   const { t, formatPrice } = useI18n();
-  const none = <span className="text-ink-muted">{t('room.none')}</span>;
+  const { generate, generating, error } = useGenerateDesign();
+  const none =<span className="text-ink-muted">{t('room.none')}</span>;
   const list = (items: string[]) => (items.length > 0 ? items.join(' · ') : none);
 
   const rows: { label: string; value: ReactNode }[] = [
@@ -101,10 +103,22 @@ function RoomSummary({ room }: { room: Room }) {
           </dl>
 
           <div className="flex flex-col gap-2">
-            <button type="button" disabled className={buttonClasses('primary', 'lg')}>
-              {t('room.generate')}
+            <button
+              type="button"
+              onClick={() => generate(room.id)}
+              disabled={generating}
+              className={buttonClasses('primary', 'lg')}
+            >
+              {generating && (
+                <span className="size-4 animate-spin rounded-full border-2 border-canvas/40 border-t-canvas" aria-hidden />
+              )}
+              {generating ? t('room.generating') : t('room.generate')}
             </button>
-            <p className="text-center text-xs text-ink-muted">{t('room.generateSoon')}</p>
+            {error && (
+              <p role="alert" className="rounded-2xl bg-danger px-4 py-3 text-sm text-danger-ink">
+                {t(error)}
+              </p>
+            )}
             <Link to="/configure" className={buttonClasses('secondary')}>
               {t('room.edit')}
             </Link>

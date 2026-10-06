@@ -1,0 +1,49 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import type { DesignProductsResponse } from '@nice-home/shared';
+import { HttpError } from '../errors';
+import { generateDesign } from '../pipeline/generateDesign';
+import { services } from '../services/registry';
+import { NoProvidersAvailableError } from '../services/product-engine/ProductEngine';
+import { getDesignRecord, saveDesign } from '../storage/designs';
+import { isValidId } from '../storage/ids';
+import { getRoom } from '../storage/rooms';
+
+export const designsRouter = Router();
+
+const generateSchema = z.object({ roomId: z.string().refine(isValidId, 'Invalid room id') });
+
+designsRouter.post('/generate', async (req, res) => {
+  const parsed = generateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new HttpError(400, 'invalid_request', 'Expected { roomId }');
+  }
+  const room = await getRoom(parsed.data.roomId);
+  if (!room) {
+    throw new HttpError(404, 'room_not_found', 'Room not found');
+  }
+
+  try {
+    const record = await generateDesign(room, services);
+    await saveDesign(record);
+    res.status(201).json(record.design);
+  } catch (error) {
+    if (error instanceof NoProvidersAvailableError) {
+      throw new HttpError(503, 'products_unavailable', 'No product source is reachable right now');
+    }
+    throw error;
+  }
+});
+
+designsRouter.get('/:id', async (req, res) => {
+  const record = await getDesignRecord(req.params.id);
+  if (!record) throw new HttpError(404, 'design_not_found', 'Design not found');
+  res.json(record.design);
+});
+
+designsRouter.get('/:id/products', async (req, res) => {
+  const record = await getDesignRecord(req.params.id);
+  if (!record) throw new HttpError(404, 'design_not_found', 'Design not found');
+  const body: DesignProductsResponse = { products: record.products, stores: record.stores };
+  res.json(body);
+});

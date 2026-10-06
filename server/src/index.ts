@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import express from 'express';
 import { config, isMockMode } from './config';
 import { errorHandler, notFoundHandler } from './errors';
+import { designsRouter } from './routes/designs';
 import { healthRouter } from './routes/health';
+import { mockAssetsRouter } from './routes/mockAssets';
+import { productsRouter, storesRouter } from './routes/products';
 import { roomsRouter } from './routes/rooms';
 import { uploadsRouter } from './routes/uploads';
 
@@ -14,6 +17,10 @@ app.use(express.json());
 app.use('/api/health', healthRouter);
 app.use('/api/uploads', uploadsRouter);
 app.use('/api/rooms', roomsRouter);
+app.use('/api/designs', designsRouter);
+app.use('/api/products', productsRouter);
+app.use('/api/stores', storesRouter);
+app.use('/api/mock-assets', mockAssetsRouter);
 app.use('/api', notFoundHandler);
 app.use(errorHandler);
 
