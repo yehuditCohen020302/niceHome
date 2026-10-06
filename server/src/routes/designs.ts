@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { DesignProductsResponse } from '@nice-home/shared';
 import { HttpError } from '../errors';
+import { getJob, startDesignJob } from '../jobs/designJobs';
 import { generateDesign } from '../pipeline/generateDesign';
 import { services } from '../services/registry';
 import { NoProvidersAvailableError } from '../services/product-engine/ProductEngine';
@@ -13,8 +14,8 @@ export const designsRouter = Router();
 
 const generateSchema = z.object({ roomId: z.string().refine(isValidId, 'Invalid room id') });
 
-designsRouter.post('/generate', async (req, res) => {
-  const parsed = generateSchema.safeParse(req.body);
+async function roomFromBody(body: unknown) {
+  const parsed = generateSchema.safeParse(body);
   if (!parsed.success) {
     throw new HttpError(400, 'invalid_request', 'Expected { roomId }');
   }
@@ -22,7 +23,12 @@ designsRouter.post('/generate', async (req, res) => {
   if (!room) {
     throw new HttpError(404, 'room_not_found', 'Room not found');
   }
+  return room;
+}
 
+/** Synchronous generation: returns the finished design. Useful for scripts and tests. */
+designsRouter.post('/generate', async (req, res) => {
+  const room = await roomFromBody(req.body);
   try {
     const record = await generateDesign(room, services);
     await saveDesign(record);
@@ -33,6 +39,18 @@ designsRouter.post('/generate', async (req, res) => {
     }
     throw error;
   }
+});
+
+/** Background generation: returns a job to poll for real stage-by-stage progress. Used by the UI. */
+designsRouter.post('/jobs', async (req, res) => {
+  const room = await roomFromBody(req.body);
+  res.status(202).json(startDesignJob(room));
+});
+
+designsRouter.get('/jobs/:jobId', (req, res) => {
+  const job = getJob(req.params.jobId);
+  if (!job) throw new HttpError(404, 'job_not_found', 'Job not found');
+  res.json(job);
 });
 
 designsRouter.get('/:id', async (req, res) => {

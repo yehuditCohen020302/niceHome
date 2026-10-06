@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { ConfigurePage } from './pages/ConfigurePage';
 import { DesignPage } from './pages/DesignPage';
+import { GeneratingPage } from './pages/GeneratingPage';
 import { LandingPage } from './pages/LandingPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RoomPage } from './pages/RoomPage';
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
       { path: '/upload', element: <UploadPage /> },
       { path: '/configure', element: <ConfigurePage /> },
       { path: '/rooms/:roomId', element: <RoomPage /> },
+      { path: '/generating/:jobId', element: <GeneratingPage /> },
       { path: '/designs/:designId', element: <DesignPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

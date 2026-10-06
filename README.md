@@ -8,7 +8,7 @@
 Upload → Analyze → Plan → Find Real Products → Generate Room With Those Products → Shop
 ```
 
-> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט), M2 (מסך פתיחה והעלאת תמונה), M3 (הגדרות השדרוג) ו-M4 (Pipeline עם Mocks) הושלמו. ראו [Phase 1 — Milestones](#phase-1--milestones).
+> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט), M2 (מסך פתיחה והעלאת תמונה), M3 (הגדרות השדרוג), M4 (Pipeline עם Mocks) ו-M5 (מסך תוצאה) הושלמו. ראו [Phase 1 — Milestones](#phase-1--milestones).
 
 ---
 
@@ -445,6 +445,16 @@ CTA: **"חסוך בתקציב"** — מציג את ההחלפות המוצעות
 
 Slider להשוואה בין התמונה המקורית להדמיה: `BEFORE ←→ AFTER`.
 
+מוצג רק כשיש הדמיה אמיתית (`generatedImageUrl`). כל עוד אין מנוע יצירה, אין מה להשוות — והמתג "לפני / אחרי" לא מופיע.
+
+### איך מסך התוצאה עובד כרגע (M5)
+
+- **התקדמות אמיתית:** לחיצה על "צרו עיצוב" פותחת עבודת רקע (`POST /api/designs/jobs`), והמסך "בונים את העיצוב שלכם" מציג את מצב כל שלב כפי שהשרת מדווח אותו — כולל "5 מתוך 5 פריטים" בחיפוש. שלב יצירת ההדמיה מסומן "עוד לא זמין" (ולא ✓) כל עוד אין מנוע יצירה.
+- **דסקטופ:** ריחוף על נקודה מציג את כרטיס המוצר; לחיצה "נועצת" אותו. Escape או לחיצה מחוץ לתמונה סוגרים. הכרטיס נפתח בצד שבו יש יותר מקום.
+- **מובייל:** הקשה על נקודה פותחת Bottom Sheet עם "הפריט הקודם / הבא"; הקשה על הרקע סוגרת. גלילת העמוד ננעלת בזמן שהחלונית פתוחה.
+- **רשימת הקניות:** מקובצת לפי חנות, עם סה"כ, "נשארו X מהתקציב" או "חריגה של X". לחיצה על שורה פותחת את כרטיס המוצר.
+- **כרטיס המוצר:** מחיר + "עודכן לפני X", חנות, זמינות, משלוח, מיקום, דירוג, ומספר החלופות שנמצאו. שדה חסר מוצג "אין מידע". למוצר דוגמה אין קישור, ומופיעה הודעה שהוא לא אמיתי.
+
 ---
 
 ## ארכיטקטורה
@@ -723,7 +733,9 @@ interface DesignItem {
 | `POST` | `/api/rooms` | יצירת Room (תמונה שהועלתה + העדפות). נשמר ב-`server/data/rooms/{id}.json` |
 | `GET` | `/api/rooms/{roomId}` | שליפת Room |
 | `POST` | `/api/rooms/{roomId}/analyze` | ניתוח תמונת החדר |
-| `POST` | `/api/designs/generate` | הרצת ה-Pipeline המלא עבור Room |
+| `POST` | `/api/designs/generate` | הרצת ה-Pipeline המלא עבור Room, ומחזיר את ה-Design בסיום (לסקריפטים ובדיקות) |
+| `POST` | `/api/designs/jobs` | מתחיל בניית Design ברקע ומחזיר Job (202). בשימוש ה-UI |
+| `GET` | `/api/designs/jobs/{jobId}` | מצב ה-Job: כל שלב (`pending` / `active` / `done` / `skipped`), התקדמות החיפוש, ו-`designId` בסיום. Jobs נשמרים בזיכרון בלבד |
 | `GET` | `/api/designs/{designId}` | שליפת Design |
 | `GET` | `/api/designs/{designId}/products` | המוצרים ב-Design (כולל Hotspots וחלופות) |
 | `GET` | `/api/products/search` | חיפוש מוצרים (קטגוריה, מחיר מקסימלי, סגנון, צבע, מיקום...) |
@@ -823,7 +835,8 @@ nice-home/
 │   ├── src/
 │   │   ├── routes/             # health, uploads, rooms, designs, products, stores
 │   │   ├── storage/            # שמירת קבצים מקומית (uploads, rooms, designs)
-│   │   ├── pipeline/           # generateDesign + משקלי תקציב
+│   │   ├── pipeline/           # generateDesign (עם דיווח התקדמות) + משקלי תקציב
+│   │   ├── jobs/               # עבודות רקע לבניית עיצוב (בזיכרון)
 │   │   ├── services/
 │   │   │   ├── image-analysis/
 │   │   │   ├── design-planner/
@@ -881,7 +894,7 @@ Landing · Upload · Room configuration · Budget · Style · Mock analysis · R
 | **M2** ✅ | Landing + Upload | מסך פתיחה, העלאת תמונה (Drag & Drop / קובץ / מצלמה), Preview, שמירה מקומית בשרת | תמונה מועלית ומוצגת |
 | **M3** ✅ | הגדרות השדרוג | חדר, מטרות, מה אסור לשנות, תקציב, מיקום, סגנון → `POST /api/rooms` | Room נשמר עם כל ההעדפות |
 | **M4** ✅ | Pipeline עם Mocks | Mock analysis → planner מבוסס כללים → `ProductSpec[]` → Product Engine + `MockProductProvider` (סינון מחיר/זמינות/סגנון) → דירוג לפי כללים → Mapping | `POST /api/designs/generate` מחזיר Design שכל פריטיו בתוך התקציב ומסומנים mock |
-| **M5** | מסך תוצאה | התקדמות לפי שלבים, Interactive Image + Hotspots, Product Card (Popover / Bottom Sheet), Shopping List, סה"כ ויתרת תקציב, Before/After | לחיצה על Hotspot מציגה מוצר, והסכום נכון |
+| **M5** ✅ | מסך תוצאה | התקדמות לפי שלבים, Interactive Image + Hotspots, Product Card (Popover / Bottom Sheet), Shopping List, סה"כ ויתרת תקציב, Before/After | לחיצה על Hotspot מציגה מוצר, והסכום נכון |
 | **M6** | החלפה ותקציב | Drawer החלפה (חלופות שמורות + חיפוש חדש), `optimize-budget` | החלפת מוצר מעדכנת כרטיס, רשימה וסכום |
 | **M7** | ליטוש | Loading / Error / Empty states, מצב "אין אינטרנט", Responsive מלא, בדיקה מקצה לקצה | כל סעיפי [הגדרת Done](#הגדרת-done-ל-phase-1) עוברים |
 

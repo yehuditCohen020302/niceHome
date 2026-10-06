@@ -1,12 +1,19 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { BeforeAfterSlider } from '../components/design/BeforeAfterSlider';
+import { BottomSheet } from '../components/design/BottomSheet';
+import { InteractiveImage } from '../components/design/InteractiveImage';
+import { ProductCard } from '../components/design/ProductCard';
+import { ShoppingList } from '../components/design/ShoppingList';
 import { buttonClasses } from '../components/buttonStyles';
+import { buildEntries } from '../features/design/designEntries';
 import { useDesign, type LoadedDesign } from '../features/design/useDesign';
+import { DESKTOP_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { useI18n } from '../i18n';
 
-/**
- * Interim result page for M4: shows the pipeline output plainly.
- * M5 replaces it with the interactive image, product cards and before/after.
- */
+/** Grace period so moving the pointer from a hotspot onto its card does not close the card. */
+const HOVER_CLOSE_DELAY_MS = 150;
+
 export function DesignPage() {
   const { designId = '' } = useParams();
   const { t } = useI18n();
@@ -37,10 +44,80 @@ export function DesignPage() {
 
 function DesignView({ data }: { data: LoadedDesign }) {
   const { t, formatPrice } = useI18n();
-  const { design, room, products, stores } = data;
+  const { design, room } = data;
+  const entries = useMemo(() => buildEntries(data), [data]);
+  const desktop = useMediaQuery(DESKTOP_QUERY);
+
+  // A card is open when pinned by a click/tap, or (desktop only) while hovering a hotspot.
+  const [pinned, setPinned] = useState<number | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [view, setView] = useState<'interactive' | 'compare'>('interactive');
+  const activeNumber = pinned ?? (desktop ? hovered : null);
+  const active = entries.find((entry) => entry.number === activeNumber);
+
+  const figureRef = useRef<HTMLElement>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+
+  const close = useCallback(() => {
+    setPinned(null);
+    setHovered(null);
+  }, []);
+
+  const hover = (number: number | null) => {
+    window.clearTimeout(closeTimer.current);
+    if (number !== null) setHovered(number);
+    else closeTimer.current = window.setTimeout(() => setHovered(null), HOVER_CLOSE_DELAY_MS);
+  };
+
+  const togglePinned = (number: number) => {
+    setHovered(null);
+    setPinned((current) => (current === number ? null : number));
+  };
+
+  const selectFromList = (number: number) => {
+    setView('interactive');
+    setPinned(number);
+    if (desktop) figureRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+
+  const step = (direction: 1 | -1) => {
+    if (activeNumber === null || entries.length === 0) return;
+    const index = entries.findIndex((entry) => entry.number === activeNumber);
+    setPinned(entries[(index + direction + entries.length) % entries.length]!.number);
+  };
+
+  // Desktop: Escape or a click outside the image closes a pinned card.
+  useEffect(() => {
+    if (!desktop || activeNumber === null) return;
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && close();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!figureRef.current?.contains(event.target as Node)) close();
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [desktop, activeNumber, close]);
+
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  const closeButton = (
+    <button
+      type="button"
+      onClick={close}
+      aria-label={t('card.close')}
+      className="-me-1 -mt-1 flex size-9 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-ink/5"
+    >
+      <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <path d="m5 5 10 10M15 5 5 15" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
 
   const usesRules = design.pipeline.planner === 'rules' || design.pipeline.ranker === 'rules';
-  const isEmpty = design.items.length === 0 && design.unmatchedSpecs.length === 0;
+  const isEmpty = entries.length === 0 && design.unmatchedSpecs.length === 0;
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
@@ -63,91 +140,64 @@ function DesignView({ data }: { data: LoadedDesign }) {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <figure className="relative mx-auto w-fit self-start">
-          <img
-            src={design.generatedImageUrl ?? room.imageUrl}
-            alt={t('design.imageAlt')}
-            className="block max-h-[70vh] w-auto max-w-full rounded-3xl bg-ink/5 shadow-sm"
-          />
-          {design.items.map((item, index) => {
-            const product = products.get(item.productId);
-            return (
-              <span
-                key={item.specId}
-                role="img"
-                aria-label={t('design.hotspot', { number: index + 1, name: product?.name ?? '' })}
-                className="absolute flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-sm font-semibold text-ink shadow-md ring-4 ring-surface/50"
-                // Image coordinates are physical (left/top) regardless of text direction.
-                style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%` }}
-              >
-                {index + 1}
-              </span>
-            );
-          })}
-        </figure>
+        <div className="flex min-w-0 flex-col gap-3">
+          {design.generatedImageUrl && (
+            <div role="tablist" className="flex gap-1 self-center rounded-full bg-ink/5 p-1 text-sm">
+              {(['interactive', 'compare'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === mode}
+                  onClick={() => setView(mode)}
+                  className={`rounded-full px-4 py-1.5 font-medium transition ${view === mode ? 'bg-surface shadow-sm' : 'text-ink-muted'}`}
+                >
+                  {mode === 'interactive' ? t('beforeAfter.after') : `${t('beforeAfter.before')} / ${t('beforeAfter.after')}`}
+                </button>
+              ))}
+            </div>
+          )}
 
-        <div className="flex flex-col gap-4">
+          {view === 'compare' && design.generatedImageUrl ? (
+            <BeforeAfterSlider beforeUrl={room.imageUrl} afterUrl={design.generatedImageUrl} />
+          ) : (
+            <InteractiveImage
+              ref={figureRef}
+              imageUrl={design.generatedImageUrl ?? room.imageUrl}
+              entries={entries}
+              activeNumber={activeNumber}
+              onHotspotClick={togglePinned}
+              {...(desktop
+                ? {
+                    onHotspotHover: hover,
+                    onPopoverHover: (inside: boolean) => hover(inside ? activeNumber : null),
+                    popover: active && <ProductCard entry={active} controls={closeButton} />,
+                  }
+                : {})}
+            />
+          )}
+
+          {entries.length > 0 && view === 'interactive' && (
+            <p className="text-center text-sm text-ink-muted">{t('design.tapHint')}</p>
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-4">
           {isEmpty ? (
             <div className="rounded-3xl border border-line bg-surface p-6">
               <h2 className="font-semibold">{t('design.empty.title')}</h2>
               <p className="mt-2 text-sm text-ink-muted">{t('design.empty.body')}</p>
             </div>
           ) : (
-            <div className="rounded-3xl border border-line bg-surface">
-              <h2 className="px-5 pt-5 text-lg font-semibold">{t('design.items.title')}</h2>
-              <ol className="divide-y divide-line">
-                {design.items.map((item, index) => {
-                  const product = products.get(item.productId);
-                  if (!product) return null;
-                  const store = stores.get(product.storeId);
-                  return (
-                    <li key={item.specId} className="flex gap-3 px-5 py-4">
-                      <span className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent-strong">
-                        {index + 1}
-                      </span>
-                      <img src={product.imageUrl} alt="" className="size-16 shrink-0 rounded-xl bg-canvas object-cover" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium leading-snug">{product.name}</p>
-                        <p className="mt-0.5 text-xs text-ink-muted">
-                          {store?.name ?? product.storeId}
-                          {product.mock && (
-                            <span className="ms-2 rounded-full bg-notice px-2 py-0.5 text-[11px] font-medium text-notice-ink">
-                              {t('design.item.mock')}
-                            </span>
-                          )}
-                        </p>
-                        <p className="mt-1 text-xs">
-                          {product.mock ? (
-                            <span className="text-ink-muted">{t('design.item.noLink')}</span>
-                          ) : (
-                            <a
-                              href={product.productUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-medium text-accent-strong underline-offset-2 hover:underline"
-                            >
-                              {t('design.item.open')}
-                            </a>
-                          )}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm font-semibold">{formatPrice(product.price, product.currency)}</p>
-                    </li>
-                  );
-                })}
-              </ol>
-              <div className="flex items-baseline justify-between gap-3 border-t border-line px-5 py-4">
-                <span className="font-semibold">{t('design.total')}</span>
-                <div className="text-end">
-                  <p className="text-xl font-bold">{formatPrice(design.totalPrice)}</p>
-                  <p className="text-xs text-ink-muted">
-                    {design.budget === null
-                      ? t('design.noBudget')
-                      : t('design.remaining', { amount: formatPrice(design.budget - design.totalPrice) })}
-                  </p>
-                </div>
-              </div>
-            </div>
+            entries.length > 0 && (
+              <ShoppingList
+                entries={entries}
+                totalPrice={design.totalPrice}
+                budget={design.budget}
+                activeNumber={activeNumber}
+                onSelect={selectFromList}
+              />
+            )
           )}
 
           {design.unmatchedSpecs.length > 0 && (
@@ -174,6 +224,24 @@ function DesignView({ data }: { data: LoadedDesign }) {
           </Link>
         </div>
       </div>
+
+      <BottomSheet open={!desktop && active !== undefined} label={active?.product.name ?? ''} onClose={close}>
+        {active && (
+          <>
+            <ProductCard entry={active} controls={closeButton} />
+            {entries.length > 1 && (
+              <div className="mt-4 flex gap-2">
+                <button type="button" onClick={() => step(-1)} className={`${buttonClasses('secondary')} flex-1`}>
+                  {t('card.prev')}
+                </button>
+                <button type="button" onClick={() => step(1)} className={`${buttonClasses('secondary')} flex-1`}>
+                  {t('card.next')}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </BottomSheet>
     </section>
   );
 }

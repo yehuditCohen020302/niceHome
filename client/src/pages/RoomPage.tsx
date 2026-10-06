@@ -55,7 +55,7 @@ export function RoomPage() {
 
 function RoomSummary({ room }: { room: Room }) {
   const { t, formatPrice } = useI18n();
-  const { generate, generating, error } = useGenerateDesign();
+  const { generate, starting, error } = useGenerateDesign();
   const none =<span className="text-ink-muted">{t('room.none')}</span>;
   const list = (items: string[]) => (items.length > 0 ? items.join(' · ') : none);
 
@@ -106,13 +106,13 @@ function RoomSummary({ room }: { room: Room }) {
             <button
               type="button"
               onClick={() => generate(room.id)}
-              disabled={generating}
+              disabled={starting}
               className={buttonClasses('primary', 'lg')}
             >
-              {generating && (
+              {starting && (
                 <span className="size-4 animate-spin rounded-full border-2 border-canvas/40 border-t-canvas" aria-hidden />
               )}
-              {generating ? t('room.generating') : t('room.generate')}
+              {starting ? t('room.generating') : t('room.generate')}
             </button>
             {error && (
               <p role="alert" className="rounded-2xl bg-danger px-4 py-3 text-sm text-danger-ink">

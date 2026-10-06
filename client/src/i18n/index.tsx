@@ -23,7 +23,15 @@ interface I18nContextValue {
   locale: LocaleDefinition;
   t: (key: MessageKey, params?: Params) => string;
   formatPrice: (amount: number, currency?: string) => string;
+  /** "לפני 2 שעות" style text for an ISO timestamp. */
+  formatRelativeTime: (iso: string) => string;
 }
+
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['day', 86_400_000],
+  ['hour', 3_600_000],
+  ['minute', 60_000],
+];
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
@@ -57,12 +65,29 @@ export function I18nProvider({
       new Intl.NumberFormat(locale.intl, {
         style: 'currency',
         currency,
-        maximumFractionDigits: 0,
+        // Whole shekels without decimals; real prices with agorot keep them.
+        minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+        maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
       }).format(amount),
     [locale],
   );
 
-  const value = useMemo(() => ({ locale, t, formatPrice }), [locale, t, formatPrice]);
+  const formatRelativeTime = useCallback(
+    (iso: string) => {
+      const format = new Intl.RelativeTimeFormat(locale.intl, { numeric: 'auto' });
+      const diff = new Date(iso).getTime() - Date.now();
+      for (const [unit, ms] of RELATIVE_UNITS) {
+        if (Math.abs(diff) >= ms) return format.format(Math.round(diff / ms), unit);
+      }
+      return format.format(0, 'minute');
+    },
+    [locale],
+  );
+
+  const value = useMemo(
+    () => ({ locale, t, formatPrice, formatRelativeTime }),
+    [locale, t, formatPrice, formatRelativeTime],
+  );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

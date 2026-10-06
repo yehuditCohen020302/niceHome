@@ -167,6 +167,31 @@ export interface GenerateDesignRequest {
   roomId: string;
 }
 
+/** Pipeline stages, in the order they run. */
+export const DESIGN_STAGES = ['analyze', 'plan', 'search', 'generate', 'map'] as const;
+export type DesignStageId = (typeof DESIGN_STAGES)[number];
+
+/** `skipped` = the stage has no real implementation yet (e.g. no image generator connected). */
+export type DesignStageStatus = 'pending' | 'active' | 'done' | 'skipped';
+
+export interface DesignStageProgress {
+  id: DesignStageId;
+  status: DesignStageStatus;
+  /** Item-level progress for the search stage. */
+  done?: number;
+  total?: number;
+}
+
+/** A design being generated in the background, polled by the client for real progress. */
+export interface DesignJob {
+  id: string;
+  roomId: string;
+  status: 'running' | 'done' | 'failed';
+  stages: DesignStageProgress[];
+  designId?: string;
+  error?: { code: string; message: string };
+}
+
 /** Products and stores referenced by a design, including its alternatives. */
 export interface DesignProductsResponse {
   products: Product[];

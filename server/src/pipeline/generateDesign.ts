@@ -1,6 +1,7 @@
 import {
   DEFAULT_COUNTRY,
   type Design,
+  type DesignStageProgress,
   type Product,
   type ProductSpec,
   type Room,
@@ -30,6 +31,9 @@ export interface DesignRecord {
   stores: Store[];
 }
 
+/** Called as each stage starts, advances and finishes, so the client can show real progress. */
+export type ProgressListener = (progress: DesignStageProgress) => void;
+
 /** Selected product plus this many alternatives are kept per item for quick replacement. */
 const CANDIDATES_PER_ITEM = 4;
 
@@ -38,11 +42,20 @@ const CANDIDATES_PER_ITEM = 4;
  *   analyze room → plan specs → find real products within budget → rank → generate image → map hotspots.
  * The image is generated only after real products are chosen, using them as the reference.
  */
-export async function generateDesign(room: Room, services: PipelineServices): Promise<DesignRecord> {
+export async function generateDesign(
+  room: Room,
+  services: PipelineServices,
+  onProgress: ProgressListener = () => {},
+): Promise<DesignRecord> {
   const { analyzer, planner, engine, ranker, generator } = services;
 
+  onProgress({ id: 'analyze', status: 'active' });
   const analysis = await analyzer.analyze(room);
+  onProgress({ id: 'analyze', status: 'done' });
+
+  onProgress({ id: 'plan', status: 'active' });
   const plan = await planner.plan(room, analysis);
+  onProgress({ id: 'plan', status: 'done' });
 
   const specs: ProductSpec[] = [];
   const selected: SelectedProduct[] = [];
@@ -55,7 +68,10 @@ export async function generateDesign(room: Room, services: PipelineServices): Pr
   let remainingBudget = room.budget;
   let remainingWeight = plan.specs.reduce((sum, spec) => sum + CATEGORY_BUDGET_WEIGHT[spec.category], 0);
 
-  for (const planned of plan.specs) {
+  const total = plan.specs.length;
+  onProgress({ id: 'search', status: 'active', done: 0, total });
+  for (const [index, planned] of plan.specs.entries()) {
+    const report = () => onProgress({ id: 'search', status: 'active', done: index + 1, total });
     const weight = CATEGORY_BUDGET_WEIGHT[planned.category];
     const maxPrice =
       remainingBudget === null ? undefined : Math.floor((remainingBudget * weight) / remainingWeight);
@@ -73,6 +89,7 @@ export async function generateDesign(room: Room, services: PipelineServices): Pr
     });
     if (candidates.length === 0) {
       unmatchedSpecs.push(spec);
+      report();
       continue;
     }
 
@@ -82,6 +99,7 @@ export async function generateDesign(room: Room, services: PipelineServices): Pr
     const known = ranked.filter((candidate) => byId.has(candidate.productId));
     if (known.length === 0) {
       unmatchedSpecs.push(spec);
+      report();
       continue;
     }
     for (const candidate of known) productsById.set(candidate.productId, byId.get(candidate.productId)!);
@@ -89,10 +107,17 @@ export async function generateDesign(room: Room, services: PipelineServices): Pr
     const best = byId.get(known[0]!.productId)!;
     if (remainingBudget !== null) remainingBudget -= best.price;
     selected.push({ spec, ranked: known });
+    report();
   }
+  onProgress({ id: 'search', status: 'done', done: total, total });
 
   const chosenProducts = selected.map(({ ranked }) => productsById.get(ranked[0]!.productId)!);
+  onProgress({ id: 'generate', status: 'active' });
   const generation = await generator.generate(room, chosenProducts);
+  // No image means no generator is connected yet: report it as skipped, not as done.
+  onProgress({ id: 'generate', status: generation.imageUrl ? 'done' : 'skipped' });
+
+  onProgress({ id: 'map', status: 'active' });
   const items = mapProducts(analysis, selected);
   const totalPrice = Math.round(chosenProducts.reduce((sum, product) => sum + product.price, 0) * 100) / 100;
 
@@ -127,5 +152,6 @@ export async function generateDesign(room: Room, services: PipelineServices): Pr
     createdAt: new Date().toISOString(),
   };
 
+  onProgress({ id: 'map', status: 'done' });
   return { design, products, stores };
 }
