@@ -8,7 +8,7 @@
 Upload → Analyze → Plan → Find Real Products → Generate Room With Those Products → Shop
 ```
 
-> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט) ו-M2 (מסך פתיחה והעלאת תמונה) הושלמו. ראו [Phase 1 — Milestones](#phase-1--milestones).
+> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט), M2 (מסך פתיחה והעלאת תמונה) ו-M3 (הגדרות השדרוג) הושלמו. ראו [Phase 1 — Milestones](#phase-1--milestones).
 
 ---
 
@@ -315,12 +315,20 @@ npm run dev              # מריץ שרת + client במקביל
 | **איזה חדר?** | בחירה יחידה | סלון (ברירת מחדל), חדר שינה, חדר ילדים, מטבח, מרפסת, אחר |
 | **מה תרצו לעשות?** | בחירה מרובה | שדרוג קטן, שינוי סגנון, הוספת אקססוריז, שינוי תאורה, וילונות, שטיח, תמונות, עציצים, כריות, שולחן/שולחנות, אחר |
 | **מה אסור לשנות?** | בחירה מרובה | ספה, שולחן, טלוויזיה, ארונות, קירות, רצפה, חלונות, דלתות |
-| **הערות חופשיות** | טקסט | למשל: "אני רוצה סגנון חם ומודרני" |
+| **הערות חופשיות** | טקסט, עד 500 תווים | למשל: "אני רוצה סגנון חם ומודרני" |
+
+כללי הטופס:
+
+- ב-MVP רק "סלון" זמין; שאר סוגי החדרים מוצגים עם תגית "בקרוב" ולא ניתנים לבחירה.
+- חובה לבחור לפחות מטרה אחת ותקציב. "מה אסור לשנות", מיקום והערות — לא חובה.
+- הבחירות נשמרות תוך כדי עריכה (sessionStorage), כך שרענון או חזרה למסך ההעלאה לא מוחקים אותן.
+- השרת מאמת את כל השדות שוב (zod) ודוחה ערכים לא מוכרים, סוג חדר שעוד לא נתמך, ותמונה שכבר לא קיימת.
+- אחרי השמירה מוצג מסך סיכום (`/rooms/{id}`) עם כל הבחירות. כפתור "צרו עיצוב" יופעל ב-M4.
 
 ### 4. תקציב
 
 - אפשרויות: עד 500 ₪ / עד 1,000 ₪ / עד 2,000 ₪ / עד 5,000 ₪ / ללא הגבלה.
-- או הזנת תקציב ידני.
+- או הזנת תקציב ידני (סכום שלם בין 1 ל-1,000,000 ₪; אפשר לכתוב עם פסיקים, למשל `1,500`).
 - התקציב מתורגם לתקרות מחיר לכל פריט ב-ProductSpec, ומשפיע ישירות על החיפוש.
 
 ### 5. מיקום
@@ -664,7 +672,8 @@ interface DesignItem {
 | `GET` | `/api/health` | מצב השרת, קישוריות לאינטרנט, ומימושים פעילים (mock / real) |
 | `POST` | `/api/uploads` | העלאת תמונת חדר (`multipart/form-data`, שדה `image`). JPEG / PNG / WebP עד 15MB; הסוג נבדק לפי תוכן הקובץ ולא לפי הסיומת. נשמר ב-`server/data/uploads/` |
 | `GET` | `/api/uploads/{id}` | הצגת תמונה שהועלתה |
-| `POST` | `/api/rooms` | יצירת Room (תמונה שהועלתה + העדפות) |
+| `POST` | `/api/rooms` | יצירת Room (תמונה שהועלתה + העדפות). נשמר ב-`server/data/rooms/{id}.json` |
+| `GET` | `/api/rooms/{roomId}` | שליפת Room |
 | `POST` | `/api/rooms/{roomId}/analyze` | ניתוח תמונת החדר |
 | `POST` | `/api/designs/generate` | הרצת ה-Pipeline המלא עבור Room |
 | `GET` | `/api/designs/{designId}` | שליפת Design |
@@ -764,7 +773,7 @@ nice-home/
 ├── server/                     # Backend — Node.js + TypeScript
 │   ├── src/
 │   │   ├── routes/             # health, uploads, rooms, designs, products, stores
-│   │   ├── storage/            # שמירת קבצים מקומית (uploads)
+│   │   ├── storage/            # שמירת קבצים מקומית (uploads, rooms)
 │   │   ├── pipeline/           # orchestration של שלבי ה-Pipeline
 │   │   ├── services/
 │   │   │   ├── image-analysis/
@@ -821,7 +830,7 @@ Landing · Upload · Room configuration · Budget · Style · Mock analysis · R
 | --- | --- | --- | --- |
 | **M1** ✅ | הקמת הפרויקט | npm workspaces, Vite + React + TS + Tailwind, שרת Express, `shared/` types, RTL, i18n בסיסי, `npm run dev`, `/api/health` | האפליקציה עולה בדפדפן ומציגה Landing ריק ב-RTL |
 | **M2** ✅ | Landing + Upload | מסך פתיחה, העלאת תמונה (Drag & Drop / קובץ / מצלמה), Preview, שמירה מקומית בשרת | תמונה מועלית ומוצגת |
-| **M3** | הגדרות השדרוג | חדר, מטרות, מה אסור לשנות, תקציב, מיקום, סגנון → `POST /api/rooms` | Room נשמר עם כל ההעדפות |
+| **M3** ✅ | הגדרות השדרוג | חדר, מטרות, מה אסור לשנות, תקציב, מיקום, סגנון → `POST /api/rooms` | Room נשמר עם כל ההעדפות |
 | **M4** | Pipeline עם Mocks | Mock analysis → planner מבוסס כללים → `ProductSpec[]` → Product Engine + `MockProductProvider` (סינון מחיר/זמינות/סגנון) → דירוג לפי כללים → Mapping | `POST /api/designs/generate` מחזיר Design שכל פריטיו בתוך התקציב ומסומנים mock |
 | **M5** | מסך תוצאה | התקדמות לפי שלבים, Interactive Image + Hotspots, Product Card (Popover / Bottom Sheet), Shopping List, סה"כ ויתרת תקציב, Before/After | לחיצה על Hotspot מציגה מוצר, והסכום נכון |
 | **M6** | החלפה ותקציב | Drawer החלפה (חלופות שמורות + חיפוש חדש), `optimize-budget` | החלפת מוצר מעדכנת כרטיס, רשימה וסכום |

@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AcceptedImageType } from '@nice-home/shared';
 import { config } from '../config';
+import { isValidId, newId } from './ids';
 
 const uploadsDir = path.join(config.dataDir, 'uploads');
 
@@ -11,8 +11,6 @@ const EXTENSIONS: Record<AcceptedImageType, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
 };
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Detects the real image type from the file's magic bytes.
@@ -40,14 +38,14 @@ export function detectImageType(buffer: Buffer): AcceptedImageType | null {
 
 export async function saveUpload(buffer: Buffer, contentType: AcceptedImageType): Promise<string> {
   await fs.mkdir(uploadsDir, { recursive: true });
-  const id = randomUUID();
+  const id = newId();
   await fs.writeFile(path.join(uploadsDir, `${id}.${EXTENSIONS[contentType]}`), buffer);
   return id;
 }
 
 /** Returns the absolute path of a stored upload, or null if the id is invalid or unknown. */
 export async function findUpload(id: string): Promise<string | null> {
-  if (!UUID_PATTERN.test(id)) return null;
+  if (!isValidId(id)) return null;
   for (const extension of Object.values(EXTENSIONS)) {
     const filePath = path.join(uploadsDir, `${id}.${extension}`);
     try {

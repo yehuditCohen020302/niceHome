@@ -17,7 +17,11 @@ export const notFoundHandler: RequestHandler = (req, _res, next) => {
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   const httpError =
-    err instanceof HttpError ? err : new HttpError(500, 'internal_error', 'Unexpected server error');
+    err instanceof HttpError
+      ? err
+      : (err as { type?: string })?.type === 'entity.parse.failed'
+        ? new HttpError(400, 'invalid_json', 'Request body is not valid JSON')
+        : new HttpError(500, 'internal_error', 'Unexpected server error');
   if (httpError.status >= 500) {
     console.error(err);
   }

@@ -12,7 +12,8 @@
     "@nice-home/shared": "*",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

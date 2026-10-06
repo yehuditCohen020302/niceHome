@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import type { UploadedImage } from '@nice-home/shared';
+import type { PreferencesForm } from '../configure/preferencesForm';
 
 /** What the user has entered so far, before a Room is created on the server. */
 export interface RoomDraft {
   image?: UploadedImage;
+  preferences?: PreferencesForm;
 }
 
 interface RoomDraftContextValue {

@@ -21,17 +21,27 @@ export interface Location {
   city: string;
 }
 
-export interface Room {
-  id: string;
-  imageUrl: string;
+/** What the user asked for. Shared by the configure form and the Room record. */
+export interface RoomPreferences {
   roomType: RoomType;
   goals: UpgradeGoal[];
+  /** Things that must stay exactly as they are in the photo. */
   constraints: RoomConstraint[];
   notes?: string;
   location?: Location;
   /** `null` means no budget limit. */
   budget: number | null;
   style: StyleChoice;
+}
+
+export interface CreateRoomRequest extends RoomPreferences {
+  imageId: string;
+}
+
+export interface Room extends RoomPreferences {
+  id: string;
+  imageId: string;
+  imageUrl: string;
   createdAt: string;
 }
 

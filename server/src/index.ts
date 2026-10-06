@@ -3,6 +3,7 @@ import express from 'express';
 import { config, isMockMode } from './config';
 import { errorHandler, notFoundHandler } from './errors';
 import { healthRouter } from './routes/health';
+import { roomsRouter } from './routes/rooms';
 import { uploadsRouter } from './routes/uploads';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
@@ -12,6 +13,7 @@ app.use(express.json());
 
 app.use('/api/health', healthRouter);
 app.use('/api/uploads', uploadsRouter);
+app.use('/api/rooms', roomsRouter);
 app.use('/api', notFoundHandler);
 app.use(errorHandler);
 

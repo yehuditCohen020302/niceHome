@@ -82,5 +82,9 @@ export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as
 export type AcceptedImageType = (typeof ACCEPTED_IMAGE_TYPES)[number];
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
+export const MAX_NOTES_LENGTH = 500;
+export const MAX_CITY_LENGTH = 60;
+export const MAX_BUDGET = 1_000_000;
+
 export const DEFAULT_COUNTRY = 'IL';
 export const DEFAULT_CURRENCY = 'ILS';
