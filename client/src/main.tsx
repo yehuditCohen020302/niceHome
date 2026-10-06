@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { HealthProvider } from './features/health/HealthProvider';
+import { RoomDraftProvider } from './features/room-draft/RoomDraftProvider';
 import { I18nProvider } from './i18n';
 import './index.css';
 
@@ -12,7 +13,9 @@ createRoot(root).render(
   <StrictMode>
     <I18nProvider>
       <HealthProvider>
-        <App />
+        <RoomDraftProvider>
+          <App />
+        </RoomDraftProvider>
       </HealthProvider>
     </I18nProvider>
   </StrictMode>,

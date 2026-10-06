@@ -1,4 +1,5 @@
 import type {
+  AcceptedImageType,
   ProductCategory,
   RoomConstraint,
   RoomType,
@@ -125,6 +126,14 @@ export interface Design {
   totalPrice: number;
   unmatchedSpecs: ProductSpec[];
   createdAt: string;
+}
+
+/** A room photo stored on the local server. */
+export interface UploadedImage {
+  id: string;
+  url: string;
+  contentType: AcceptedImageType;
+  sizeBytes: number;
 }
 
 export interface HealthResponse {

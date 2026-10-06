@@ -77,5 +77,10 @@ export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 /** Budget presets in ILS. `null` means no limit. */
 export const BUDGET_PRESETS: readonly (number | null)[] = [500, 1000, 2000, 5000, null];
 
+/** Room photo formats every browser can display. HEIC is excluded: only Safari renders it. */
+export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type AcceptedImageType = (typeof ACCEPTED_IMAGE_TYPES)[number];
+export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+
 export const DEFAULT_COUNTRY = 'IL';
 export const DEFAULT_CURRENCY = 'ILS';

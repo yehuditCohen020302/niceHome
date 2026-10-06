@@ -8,7 +8,7 @@
 Upload → Analyze → Plan → Find Real Products → Generate Room With Those Products → Shop
 ```
 
-> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט) הושלם. ראו [Phase 1 — Milestones](#phase-1--milestones).
+> **סטטוס:** Phase 1 בפיתוח — M1 (הקמת הפרויקט) ו-M2 (מסך פתיחה והעלאת תמונה) הושלמו. ראו [Phase 1 — Milestones](#phase-1--milestones).
 
 ---
 
@@ -305,7 +305,8 @@ npm run dev              # מריץ שרת + client במקביל
 - כותרת: **"העלו תמונה של החדר"**
 - תמיכה ב-Drag & Drop, בחירת קובץ, ומצלמת מובייל.
 - הצגת Preview לאחר ההעלאה.
-- ולידציה: סוג קובץ (JPEG / PNG / WebP / HEIC אם נתמך) וגודל מקסימלי.
+- ולידציה: JPEG / PNG / WebP עד 15MB — בדפדפן, ושוב בשרת לפי תוכן הקובץ. HEIC לא נתמך כי רק Safari מציג אותו.
+- התמונה שהועלתה נזכרת עד סגירת הלשונית (sessionStorage), כך שרענון העמוד לא מאבד אותה.
 
 ### 3. פרטי השדרוג
 
@@ -661,7 +662,9 @@ interface DesignItem {
 | Method | Endpoint | תיאור |
 | --- | --- | --- |
 | `GET` | `/api/health` | מצב השרת, קישוריות לאינטרנט, ומימושים פעילים (mock / real) |
-| `POST` | `/api/rooms` | יצירת Room (העלאת תמונה + העדפות) |
+| `POST` | `/api/uploads` | העלאת תמונת חדר (`multipart/form-data`, שדה `image`). JPEG / PNG / WebP עד 15MB; הסוג נבדק לפי תוכן הקובץ ולא לפי הסיומת. נשמר ב-`server/data/uploads/` |
+| `GET` | `/api/uploads/{id}` | הצגת תמונה שהועלתה |
+| `POST` | `/api/rooms` | יצירת Room (תמונה שהועלתה + העדפות) |
 | `POST` | `/api/rooms/{roomId}/analyze` | ניתוח תמונת החדר |
 | `POST` | `/api/designs/generate` | הרצת ה-Pipeline המלא עבור Room |
 | `GET` | `/api/designs/{designId}` | שליפת Design |
@@ -760,7 +763,8 @@ nice-home/
 │       └── i18n/               # קבצי תרגום (he, בעתיד en)
 ├── server/                     # Backend — Node.js + TypeScript
 │   ├── src/
-│   │   ├── routes/             # health, rooms, designs, products, stores
+│   │   ├── routes/             # health, uploads, rooms, designs, products, stores
+│   │   ├── storage/            # שמירת קבצים מקומית (uploads)
 │   │   ├── pipeline/           # orchestration של שלבי ה-Pipeline
 │   │   ├── services/
 │   │   │   ├── image-analysis/
@@ -816,7 +820,7 @@ Landing · Upload · Room configuration · Budget · Style · Mock analysis · R
 | # | Milestone | תוצר | בדיקה |
 | --- | --- | --- | --- |
 | **M1** ✅ | הקמת הפרויקט | npm workspaces, Vite + React + TS + Tailwind, שרת Express, `shared/` types, RTL, i18n בסיסי, `npm run dev`, `/api/health` | האפליקציה עולה בדפדפן ומציגה Landing ריק ב-RTL |
-| **M2** | Landing + Upload | מסך פתיחה, העלאת תמונה (Drag & Drop / קובץ / מצלמה), Preview, שמירה מקומית בשרת | תמונה מועלית ומוצגת |
+| **M2** ✅ | Landing + Upload | מסך פתיחה, העלאת תמונה (Drag & Drop / קובץ / מצלמה), Preview, שמירה מקומית בשרת | תמונה מועלית ומוצגת |
 | **M3** | הגדרות השדרוג | חדר, מטרות, מה אסור לשנות, תקציב, מיקום, סגנון → `POST /api/rooms` | Room נשמר עם כל ההעדפות |
 | **M4** | Pipeline עם Mocks | Mock analysis → planner מבוסס כללים → `ProductSpec[]` → Product Engine + `MockProductProvider` (סינון מחיר/זמינות/סגנון) → דירוג לפי כללים → Mapping | `POST /api/designs/generate` מחזיר Design שכל פריטיו בתוך התקציב ומסומנים mock |
 | **M5** | מסך תוצאה | התקדמות לפי שלבים, Interactive Image + Hotspots, Product Card (Popover / Bottom Sheet), Shopping List, סה"כ ויתרת תקציב, Before/After | לחיצה על Hotspot מציגה מוצר, והסכום נכון |
